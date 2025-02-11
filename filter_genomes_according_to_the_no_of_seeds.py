@@ -2,26 +2,26 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-df = pd.read_pickle('seeds_per_genome_result_df.pkl')
+df = pd.read_pickle('seeds_to_non_seeds_df.pkl')
 print(df.head())
 
 # Check distribution
 # Histogram
-#plt.figure(figsize=(8, 5))
-#sns.histplot(df["Total_Seeds"], bins=30, kde=True)
-#plt.xlabel("Total Seeds per Genome")
-#plt.ylabel("Frequency")
-#plt.title("Distribution of Total Seeds per Genome")
-#plt.show()
+plt.figure(figsize=(8, 5))
+sns.histplot(df["Total_Seeds"], bins=30, kde=True)
+plt.xlabel("Total Seeds per Genome")
+plt.ylabel("Frequency")
+plt.title("Distribution of Total Seeds per Genome")
+plt.show()
 
 # Boxplot
-#plt.figure(figsize=(6, 4))
-#sns.boxplot(x=df["Total_Seeds"])
-#plt.xlabel("Total Seeds per Genome")
-#plt.title("Boxplot Total Seeds per Genome")
-#plt.show()
+plt.figure(figsize=(6, 4))
+sns.boxplot(x=df["Total_Seeds"])
+plt.xlabel("Total Seeds per Genome")
+plt.title("Boxplot Total Seeds per Genome")
+plt.show()
 
-#print(df["Total_Seeds"].describe())
+print(df["Total_Seeds"].describe())
 
 # Calculate low threshold (Q1) and high threshold (Q3)
 df.sorted = df.sort_values(by="Total_Seeds")
@@ -33,6 +33,7 @@ print(f"Q1:{Q1}, Q3: {Q3}")
 # Category 1: genomes with no of seeds < Q1 or the least seeds (metabolic independence?/ genes involved in many metabolic pathways -> provide itself the needed compounds?)
 # Category 2: genomes with no of seeds > Q3 or the most seeds (metabolic dependent?/ genes involved in a few metabolic pathways -> obtaining from the environment or from other microorganisms the needed compounds)
 # Category 3: genomes with Q1 < no seeds < Q3 or moderate no of seeds
+# Phylogenetic diversity in each category and between the categories?
 df['category'] = df['Total_Seeds'].apply(lambda x: 1 if x < Q1 else (2 if x > Q3 else 3))
 
 category_counts = df['category'].value_counts().sort_index()
