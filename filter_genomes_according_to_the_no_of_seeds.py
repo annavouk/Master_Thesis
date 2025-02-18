@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 df = pd.read_pickle('seeds_to_non_seeds_df.pkl')
-print(df.head())
+#print(df.head())
 
 # Check distribution
 # Histogram
@@ -42,13 +42,13 @@ print("Category distribution:", "/n", category_counts)
 
 # Save each category to a file
 category_1 = df[df['category'] == 1]
-category_1.to_csv('category_1_genomes.csv', index=False)
+category_1.to_csv('category_1_genomes.csv', index=True)
 
 category_2 = df[df['category'] == 2]
-category_2.to_csv('category_2_genomes.csv', index=False)
+category_2.to_csv('category_2_genomes.csv', index=True)
 
 category_3 = df[df['category'] == 3]
-category_3.to_csv('category_3_genomes.csv', index=False)
+category_3.to_csv('category_3_genomes.csv', index=True)
 
 # Check
 print(category_1.head())

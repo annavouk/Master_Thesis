@@ -9,7 +9,7 @@ merged_df['Ratio'] = seeds_df['Total_Seeds'] / non_seeds_df['Total_non_Seeds']
 
 print(merged_df)
 
-merged_df.to_pickle('seeds_to_non_seeds_df.pkl')
+merged_df.to_pickle('seeds_to_non_seeds.pkl')
 
 min = merged_df[['Ratio']].min()
 max = merged_df[['Ratio']].max()
