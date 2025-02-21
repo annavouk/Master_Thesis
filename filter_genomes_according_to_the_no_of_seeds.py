@@ -24,9 +24,9 @@ plt.show()
 print(df["Total_Seeds"].describe())
 
 # Calculate low threshold (Q1) and high threshold (Q3)
-df.sorted = df.sort_values(by="Total_Seeds")
-Q1 = df.sorted["Total_Seeds"].quantile(0.25)
-Q3 = df.sorted["Total_Seeds"].quantile(0.75)
+df_xsorted = df.sort_values(by="Total_Seeds")
+Q1 = df_sorted["Total_Seeds"].quantile(0.25)
+Q3 = df_sorted["Total_Seeds"].quantile(0.75)
 print(f"Q1:{Q1}, Q3: {Q3}")
 
 # Categorization of the genomes based on the no of seeds

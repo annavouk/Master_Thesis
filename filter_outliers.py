@@ -2,7 +2,6 @@ import pandas as pd
 
 df1 = pd.read_pickle('seeds_to_non_seeds_df.pkl')
 metadata = pd.read_csv("merged_metadata.csv", low_memory=False) # patric_id is the first column
-metadata = metadata.dropna(subset=['patric_id'])
 
 df1_sorted = df1.sort_values(by="Total_Seeds")
 Q1 = df1_sorted["Total_Seeds"].quantile(0.05)
@@ -50,3 +49,5 @@ for patric_id, is_present in zip(low_outliers_list, present_ids_high):
         if not is_present:
                 print(f"{patric_id} is NOT present in the metadata file.")
 
+print(high_outliers_metadata)
+print(low_outliers_metadata)
