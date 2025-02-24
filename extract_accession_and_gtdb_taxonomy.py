@@ -6,7 +6,7 @@ accession_gtdb_taxonomy = df.iloc[:, [0, 16]]
 
 accession_gtdb_taxonomy.columns = ['assembly_accession', 'gtdb_taxonomy']
 
-accession_gtdb_taxonomy.loc[:, 'assembly_accession'] = accession_gtdb_taxonomy['assembly_accession'].str.replace('GB_', '', regex=False)
+accession_gtdb_taxonomy.loc[:, 'assembly_accession'] = accession_gtdb_taxonomy['assembly_accession'].str.replace('GB_|RS_', '', regex=True)
 
 print(accession_gtdb_taxonomy.head())
 
