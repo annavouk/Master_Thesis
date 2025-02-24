@@ -1,7 +1,7 @@
 import pandas as pd
 
-patric_file = "patric_ids_with_gtdb_taxonomy.csv"
-gtdb_file = "gtdb_accession_taxonomy.csv"
+patric_file = "patric_ids_with_gtdb_taxonomy.csv" # data from GTDB2 file (every PATRIC ID of interest with accession number) and GTDB_accession_taxonomy.csv
+gtdb_file = "gtdb_accession_taxonomy.csv" # metadata from GTDB (gtdb_metadata_r207.tsv)
 output_file = "missing_accessions.txt"
 
 patric_df = pd.read_csv(patric_file, low_memory=False)
