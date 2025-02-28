@@ -23,8 +23,8 @@ high_outliers_reset = high_outliers.reset_index()
 high_outliers_reset.rename(columns={high_outliers_reset.columns[0]: 'patric_id'}, inplace=True)
 
 # Convert 'patric_id' to string (object type) in both DataFrames to overcome missing 0s in IDs
-low_outliers_reset['patric_id'] = low_outliers_reset['patric_id'].str.strip()
-high_outliers_reset['patric_id'] = high_outliers_reset['patric_id'].str.strip()
+low_outliers_reset['patric_id'] = low_outliers_reset['patric_id'].astype(str).str.strip()
+high_outliers_reset['patric_id'] = high_outliers_reset['patric_id'].astype(str).str.strip()
 
 data['patric_id'] = data['patric_id'].astype(str).str.strip()
 
@@ -54,6 +54,4 @@ for patric_id, is_present in zip(high_outliers_list, present_ids_high):
                 print(f"{patric_id} is NOT present in the merged file.")
 
 print(high_outliers_gtdb_taxonomy)
-print(high_outliers)
 print(low_outliers_gtdb_taxonomy)
-print(low_outliers)
