@@ -29,7 +29,6 @@ def fetch_metadata(patric_id):
 		if response.status_code == 200:
 			return response.json()
 		else:
-			print(f"Failed to retrieve metadata for {patric_id}, status code: {response.status_code}")
 			failed_patric_ids.append(patric_id)
 			return None
 	except requests.exceptions.RequestException as e:
