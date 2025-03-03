@@ -9,8 +9,13 @@ patric_df.rename(columns={'index': 'patric_id'}, inplace=True)
 
 gtdb_df = pd.read_csv('patric_ids_with_gtdb_taxonomy.csv')
 
-patric_df['patric_id'] = patric_df['patric_id'].astype(str)
-gtdb_df['patric_id'] = gtdb_df['patric_id'].astype(str)
+# Convert 'patric_id' to string and strip spaces
+patric_df['patric_id'] = patric_df['patric_id'].astype(str).str.strip()
+gtdb_df['patric_id'] = gtdb_df['patric_id'].astype(str).str.strip()
+
+# Force all patric_id to have 3 decimal places
+patric_df['patric_id'] = patric_df['patric_id'].apply(lambda x: f"{float(x):.3f}" if '.' in x else x)
+gtdb_df['patric_id'] = gtdb_df['patric_id'].apply(lambda x: f"{float(x):.3f}" if '.' in x else x)
 
 merged_df = pd.merge(patric_df, gtdb_df, on='patric_id', how='left')
 

@@ -1,7 +1,7 @@
 import pandas as pd
 
 df1 = pd.read_pickle('seeds_to_non_seeds_df.pkl')
-data = pd.read_csv("patric_ids_with_gtdb_taxonomy_correct.csv", low_memory=False) # patric_id is the first column
+data = pd.read_csv("merged_metadata.csv", low_memory=False) # patric_id is the first column
 
 # Filter groups 0-5% and 95-100% of distribution
 df1_sorted = df1.sort_values(by="Total_Seeds")
@@ -28,6 +28,12 @@ high_outliers_reset['patric_id'] = high_outliers_reset['patric_id'].astype(str).
 
 data['patric_id'] = data['patric_id'].astype(str).str.strip()
 
+# Ensure all patric_id has 3 decimal places, adding 0s where needed
+low_outliers_reset['patric_id'] = low_outliers_reset['patric_id'].apply(lambda x: f"{float(x):.3f}" if '.' in str(x) else str(x))
+high_outliers_reset['patric_id'] = high_outliers_reset['patric_id'].apply(lambda x: f"{float(x):.3f}" if '.' in str(x) else str(x))
+data['patric_id'] = data['patric_id'].apply(lambda x: f"{float(x):.3f}" if '.' in str(x) else str(x))
+
+# Merge low and high outliers list with corresponding gtdb taxonomy
 low_outliers_gtdb_taxonomy = pd.merge(low_outliers_reset, data, on='patric_id', how='left')
 
 low_outliers_gtdb_taxonomy = low_outliers_gtdb_taxonomy.drop_duplicates(subset=['patric_id'], keep='first')
