@@ -1,8 +1,8 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 
-#df = pd.read_csv("low_outliers_gtdb_taxonomy.csv", low_memory = False)
-df = pd.read_csv("high_outliers_gtdb_taxonomy.csv", low_memory = False)
+df = pd.read_csv("low_outliers_gtdb_taxonomy.csv", low_memory = False)
+#df = pd.read_csv("high_outliers_gtdb_taxonomy.csv", low_memory = False)
 
 def extract_species(df):
     species = {

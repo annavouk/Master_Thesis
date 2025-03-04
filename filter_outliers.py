@@ -1,7 +1,7 @@
 import pandas as pd
 
 df1 = pd.read_pickle('seeds_to_non_seeds_df.pkl')
-data = pd.read_csv("merged_metadata.csv", low_memory=False) # patric_id is the first column
+data = pd.read_csv("genome_size_merged_metadata.csv", low_memory=False) # patric_id is the first column
 
 # Filter groups 0-5% and 95-100% of distribution
 df1_sorted = df1.sort_values(by="Total_Seeds")
