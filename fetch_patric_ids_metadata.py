@@ -1,11 +1,19 @@
+import pickle
 import csv
 import requests
 import json
 import time
+import pandas as pd
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
-patric_ids_file = "patric_ids.csv"
+# Extract patric_ids list from pkl
+pickle_file = 'seeds_binary_per_patric.pckl'
+df = pd.read_pickle(pickle_file)
+
+patric_ids_list = sorted(list(df.index))
+
+# Metadata for each patric_id
 output_file = "patric_ids_metadata.json"
 failed_ids_file = "failed_patric_ids.txt"
 metadata_url = "https://www.patricbrc.org/api/genome/"
@@ -35,15 +43,13 @@ def fetch_metadata(patric_id):
 		print(f"Error fetching data for {patric_id}: {e}")
 		return None
 
-with open(patric_ids_file, 'r') as csvfile:
-	csvreader = csv.reader(csvfile)
-	for row in csvreader:
-		patric_id = row[0]
-		metadata = fetch_metadata(patric_id)
-		if metadata:
-			patric_metadata[patric_id] = metadata
-		time.sleep(1)
+for patric_id in patric_ids_list:
+	metadata = fetch_metadata(patric_id)
+	if metadata:
+		patric_metadata[patric_id] = metadata
+	time.sleep(1)
 
+# Save output json and failed_patric_ids
 with open(output_file, 'w') as jsonfile:
 	json.dump(patric_metadata, jsonfile, indent=4)
 
