@@ -1,44 +1,26 @@
-"""
-Merge PATRIC metadata with GTDB taxonomy information based on assembly accessions.
-Creates a compact metadata table for downstream analysis.
-"""
-
 import sys
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 import pandas as pd
-import json
 from config import PATRIC_METADATA_JSON, GTDB_METADATA, COMPACT_METADATA
 from utils import load_data
 
-
 def clean_patric_accessions(df):
     """
-    Filters relevant columns and cleans assembly accession format.
-
-    Parameters:
-    - df: pandas.DataFrame with at least ['patric_id', 'assembly_accession', 'genome_length']
-
-    Returns:
-    - Cleaned DataFrame with filtered and formatted assembly accessions
+    Clean and add root accession (no version) for merge.
     """
     df_filtered = df[['patric_id', 'assembly_accession', 'genome_length']].copy()
     df_filtered['assembly_accession'] = df_filtered['assembly_accession'].str.replace(
         r'^(GCA_|GCF_)', '', regex=True
     )
+    df_filtered['root_assembly'] = df_filtered['assembly_accession'].str.split('.').str[0]
     return df_filtered
 
 def clean_gtdb_metadata(df):
     """
-    Filters and cleans GTDB metadata by normalizing assembly accessions.
-
-    Parameters:
-    - df: pandas.DataFrame with GTDB metadata
-
-    Returns:
-    - Cleaned DataFrame with standardized 'assembly_accession' column
+    Clean GTDB: create root accessions from both NCBI accession and GTDB accession.
     """
     columns_to_keep = [
         'accession',
@@ -51,67 +33,74 @@ def clean_gtdb_metadata(df):
         'gtdb_genome_representative'
     ]
     df_filtered = df[columns_to_keep].copy()
-
-    # Remove NCBI-style prefixes if present
-    df_filtered['ncbi_genbank_assembly_accession'] = df_filtered['ncbi_genbank_assembly_accession'].str.replace(
-        r'^(GCA_|GCF_)', '', regex=True)
-
-    # Rename for merging
-    df_filtered.rename(columns={'ncbi_genbank_assembly_accession': 'assembly_accession'}, inplace=True)
-
+    # From NCBI
+    df_filtered['assembly_accession_ncbi'] = df_filtered['ncbi_genbank_assembly_accession'].astype(str).str.replace(
+        r'^(GCA_|GCF_)', '', regex=True
+    )
+    df_filtered['root_assembly_ncbi'] = df_filtered['assembly_accession_ncbi'].str.split('.').str[0]
+    # From GTDB 'accession'
+    df_filtered['assembly_accession_acc'] = df_filtered['accession'].astype(str).str.replace(
+        r'^(RS_GCF_|GB_GCA_|GB_GCF_|GCA_|GCF_)', '', regex=True
+    )
+    df_filtered['root_assembly_acc'] = df_filtered['assembly_accession_acc'].str.split('.').str[0]
     return df_filtered
 
-def merge_metadata(patric_df, gtdb_df, output_path=None):
+def dual_merge(patric_df, gtdb_df, output_path=None):
     """
-    Merge cleaned PATRIC and GTDB metadata on 'assembly_accession'.
-
-    Parameters:
-    - patric_df: DataFrame with cleaned PATRIC metadata
-    - gtdb_df: DataFrame with cleaned GTDB metadata
-    - output_path: Optional path to save the merged DataFrame as CSV
-
-    Returns:
-    - merged_df: The merged pandas DataFrame
+    Merge first on root_assembly vs root_assembly_ncbi,
+    then unmatched on root_assembly vs root_assembly_acc.
+    Returns single, deduplicated merged DataFrame.
     """
-    merged_df = pd.merge(patric_df, gtdb_df, on='assembly_accession', how='left')
+    # First merge: PATRIC vs GTDB by NCBI accession
+    merged_1 = pd.merge(
+        patric_df, gtdb_df,
+        left_on='root_assembly', right_on='root_assembly_ncbi',
+        how='left', suffixes=('_patric', '_gtdb')
+    )
+    unmatched = merged_1[merged_1['gtdb_taxonomy'].isna()]
+    print(f"After 1st merge (NCBI): unmatched genomes: {unmatched.shape[0]} / {patric_df.shape[0]}")
 
-    # Report unmatched genomes
-    unmatched = merged_df['gtdb_taxonomy'].isna().sum()
-    print(f"Unmatched genomes: {unmatched} out of {len(merged_df)}")
+    # Only unmatched go for 2nd merge (using GTDB accession)
+    unmatched_patric = unmatched[['patric_id', 'assembly_accession', 'genome_length', 'root_assembly']]
+    merged_2 = pd.merge(
+        unmatched_patric, gtdb_df,
+        left_on='root_assembly', right_on='root_assembly_acc',
+        how='left'
+    )
+    print(f"After 2nd merge (GTDB accession): rescued: {merged_2[~merged_2['gtdb_taxonomy'].isna()].shape[0]}")
 
+    # Combine results: matched from 1st, rescued from 2nd, remove duplicates
+    matched_1 = merged_1[~merged_1['gtdb_taxonomy'].isna()]
+    matched_2 = merged_2[~merged_2['gtdb_taxonomy'].isna()]
+    merged_final = pd.concat([matched_1, matched_2], ignore_index=True)
+    merged_final = merged_final.drop_duplicates(subset=['patric_id'])
+    print(f"Total matched after dual merge: {merged_final.shape[0]} / {patric_df.shape[0]}")
+
+    # Save
     if output_path:
-        merged_df.to_csv(output_path, index=False)
+        merged_final.to_csv(output_path, index=False)
         print(f"Merged metadata saved to: {output_path}")
 
-    return merged_df
+    # Unmatched report
+    unmatched_final = set(patric_df['patric_id']) - set(merged_final['patric_id'])
+    if unmatched_final:
+        print("Remaining unmatched PATRIC assemblies:")
+        print(list(unmatched_final)[:10])
+    else:
+        print("All PATRIC assemblies matched after dual merge!")
+
+    return merged_final
 
 def main():
-    # Load raw metadata
     patric_data = load_data(PATRIC_METADATA_JSON, filetype='json')
     patric_df = pd.DataFrame.from_dict(patric_data, orient='index').reset_index()
     patric_df.rename(columns={'index': 'patric_id'}, inplace=True)
-
     gtdb_df = load_data(GTDB_METADATA, filetype='tsv')
 
-
-    # Clean & merge
     patric_clean = clean_patric_accessions(patric_df)
     gtdb_clean = clean_gtdb_metadata(gtdb_df)
 
-    print("PATRIC unique assembly_accession:", patric_clean['assembly_accession'].nunique())
-    print("GTDB unique assembly_accession:", gtdb_clean['assembly_accession'].nunique())
-    print("PATRIC duplicates:", patric_clean['assembly_accession'].duplicated().sum())
-    print("GTDB duplicates:", gtdb_clean['assembly_accession'].duplicated().sum())
-
-    merged_df = merge_metadata(patric_clean, gtdb_clean, output_path=COMPACT_METADATA)
-
-    print("Rows in merged:", merged_df.shape[0])
-    print("Unique patric_id in merged:", merged_df['patric_id'].nunique())
-    print("patric_id duplicates:", merged_df['patric_id'].duplicated().sum())
-
-    unmatched = merged_df[merged_df['gtdb_taxonomy'].isna()]
-    print(unmatched[['patric_id', 'assembly_accession']].head(20))
-
+    dual_merge(patric_clean, gtdb_clean, output_path=COMPACT_METADATA)
 
 if __name__ == "__main__":
     main()
