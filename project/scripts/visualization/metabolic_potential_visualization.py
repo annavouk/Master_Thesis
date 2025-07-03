@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from config import METABOLIC_POTENTIAL_1
 from utils import load_data, split_and_clean_taxonomy
+from scipy.stats import kruskal
 
 
 def plot_distribution(df):
@@ -175,6 +176,14 @@ def plot_violin_seed_nonseed_by_phylum(df, top_n=10):
     plt.tight_layout()
     plt.show()
 
+def kruskal_test_by_group(df, value_col, group_col, top_n=10):
+    top_groups = df[group_col].value_counts().nlargest(top_n).index
+    sub = df[df[group_col].isin(top_groups)]
+    data = [sub[sub[group_col] == group][value_col].dropna() for group in top_groups]
+    H, p = kruskal(*data)
+    print(f"Kruskal–Wallis for '{value_col}' by '{group_col}': H={H:.2f}, p={p:.3g}")
+    return H, p
+
 
 def main():
     # Load and split taxonomy
@@ -188,6 +197,12 @@ def main():
     plot_outlier_taxa_bars(df)
     plot_violin_seed_nonseed_by_phylum(df, top_n=10)
 
+    # Kruskal-Wallis test for Total_Seeds and Total_non_Seeds by phylum
+    print("\nKruskal–Wallis test for Total_Seeds per phylum:")
+    kruskal_test_by_group(df, 'Total_Seeds', 'phylum')
+    print("\nKruskal–Wallis test for Total_non_Seeds per phylum:")  
+    kruskal_test_by_group(df, 'Total_non_Seeds', 'phylum')
+    
 
 if __name__ == "__main__":
     main()

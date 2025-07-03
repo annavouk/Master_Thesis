@@ -14,6 +14,8 @@ METADATA_RAW_DIR = METADATA_DIR / "raw"
 SCRIPTS_DIR = PROJECT_ROOT / "scripts"
 UTILS_DIR = PROJECT_ROOT / "utils"
 
+GTDB_TREES_DIR = PROJECT_ROOT / "gtdb_trees"
+
 # Input Files
 SEEDS_PICKLE = INPUT_DIR / "seeds_binary_per_patric.pckl"
 NON_SEEDS_PICKLE = INPUT_DIR / "non_seeds_binary_per_patric.pckl"
@@ -35,4 +37,5 @@ MODULE_MAP = METADATA_RAW_DIR/ "module_map_pairs.tsv"
 
 # Output Files
 METABOLIC_POTENTIAL_1 = OUTPUT_DIR / "metabolic_potential_summary.csv"
+GENOME_PATHWAY_COVERAGE = OUTPUT_DIR / "genome_pathway_coverage.tsv"
 AMINOACIDS = OUTPUT_DIR / "amino_acid_compounds.tsv"

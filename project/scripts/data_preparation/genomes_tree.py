@@ -4,6 +4,7 @@ Representative Taxonomic Tree for Top Abundant Phyla
 This script selects the top N most abundant phyla from the genome metadata,
 randomly samples up to M genomes per phylum, constructs a taxonomy-based
 (Newick format) tree using GTDB taxonomy strings, and visualizes it with ete3.
+It does not include phylogenetic distance.
 """
 
 import sys

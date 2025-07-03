@@ -5,8 +5,8 @@ This script analyzes metabolic compounds across Seed and Non-Seed datasets
 and generates summary visualizations:
 
 - Bar chart and Venn diagram showing compound overlap between Seed and Non-Seed sets
-- Distribution of KEGG modules and pathways per compound
-- Heatmap of compound participation across KEGG pathways
+- Histogram of distribution of KEGG modules and pathways per compound
+- Bar plot of top KEGG pathways in which participate the compounds from Seed, non-Seed subset and their overlap.
 
 Data is read from preprocessed summary and matrix files.
 """
@@ -20,6 +20,7 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from matplotlib_venn import venn2
+from collections import Counter
 from utils import load_data
 from config import (
     SEEDS_PICKLE,
@@ -30,7 +31,7 @@ from config import (
 
 def get_compound_sets(seed_df, nonseed_df):
     """
-    Extract sets of compounds from each matrix.
+    Extract sets of compounds from each binary matrix.
 
     Parameters:
         seed_df (pd.DataFrame): Seed binary matrix.
@@ -44,7 +45,7 @@ def get_compound_sets(seed_df, nonseed_df):
 
 def plot_bar_and_venn(seed_compounds, nonseed_compounds):
     """
-    Plot bar chart and Venn diagram showing compound set overlap.
+    Plot a bar chart and a Venn diagram showing compound set overlap.
 
     Parameters:
         seed_compounds (set): Set of compounds in SeedSet.
@@ -73,13 +74,14 @@ def plot_bar_and_venn(seed_compounds, nonseed_compounds):
     plt.tight_layout()
     plt.show()
 
+    return only_seed, only_nonseed, common
 
 def count_unique_modules(cpd_df):
     """
     Count and display the number of unique KEGG modules across all compounds.
 
     Parameters:
-        cpd_df (pd.DataFrame): Compound summary dataframe.
+        cpd_df (pd.DataFrame): Compound summary dataframe with 'KEGG_modules' column.
     """
     # Drop missing values and split on comma
     all_modules = cpd_df['KEGG_modules'].dropna().str.split(",").explode().str.strip()
@@ -96,7 +98,7 @@ def count_unique_pathways(cpd_df):
     Count and display the number of unique KEGG pathways across all compounds.
 
     Parameters:
-        cpd_df (pd.DataFrame): Compound summary dataframe.
+        cpd_df (pd.DataFrame): Compound summary dataframe 'KEGG_pathways' column.
     """
     # Drop missing values and split on comma
     all_pathways = cpd_df['KEGG_pathways'].dropna().str.split(",").explode().str.strip()
@@ -131,7 +133,7 @@ def compound_summary_stats(cpd_df):
 
 def plot_kegg_modules_per_compound(cpd_df):
     """
-    Plot the number of KEGG modules associated with each compound.
+    Plot a histogram of the number of KEGG modules associated with each compound.
     """
     cpd_df["KEGG_module_count"] = cpd_df["KEGG_modules"].str.split(",").apply(lambda x: len([i for i in x if i.strip()]))
     plt.figure(figsize=(6, 4))
@@ -145,7 +147,7 @@ def plot_kegg_modules_per_compound(cpd_df):
 
 def plot_kegg_pathways_per_compound(cpd_df):
     """
-    Plot the number of KEGG pathways associated with each compound.
+    Plot a histogram of the number of KEGG pathways associated with each compound.
     """
     cpd_df["KEGG_pathway_count"] = (
         cpd_df["KEGG_pathways"]
@@ -164,6 +166,49 @@ def plot_kegg_pathways_per_compound(cpd_df):
     plt.show()
 
 
+def get_top_pathways(compounds_set, summary_df, topN=10):
+    """
+    Calculate the most frequent KEGG pathways among a given set of compounds.
+
+    Parameters:
+        compounds_set (set): Set of compound IDs to analyze.
+        summary_df (pd.DataFrame): DataFrame containing compound metadata. 
+                                   Must include columns 'SEED_ID' and 'KEGG_pathways'.
+        topN (int): Number of top pathways to return.
+
+    Returns:
+        list: List of pairs (pathway, count) for the topN most frequent pathways.
+    """
+    sub = summary_df[summary_df['SEED_ID'].isin(compounds_set)]
+    # Assume pathways is string, split on ; or | or ,
+    path_lists = sub['KEGG_pathways'].dropna().astype(str).str.replace(' ', '').str.replace(';', '|').str.replace(',', '|').str.split('|')
+    paths_flat = [p for sublist in path_lists for p in sublist if p and p != 'nan']
+    counter = Counter(paths_flat)
+    return counter.most_common(topN)
+
+
+def plot_top_pathways(top_pathways, subset_name):
+    """
+    Plot a horizontal bar plot of the most frequent KEGG pathways in a given compound subset.
+
+    Parameters:
+        top_pathways : list of (pathway, count) pairs.
+        subset_name : str
+            Name/label for the compound subset (for plot title).
+    """
+    if not top_pathways:
+        print(f"No pathways found for {subset_name}")
+        return
+    pw_names, pw_counts = zip(*top_pathways)
+    plt.figure(figsize=(8, 4))
+    plt.barh(pw_names, pw_counts, color='teal')
+    plt.xlabel('Number of Compounds')
+    plt.title(f'Top KEGG Pathways - {subset_name}')
+    plt.gca().invert_yaxis()
+    plt.tight_layout()
+    plt.show()
+
+
 def main():
     seed_df = load_data(SEEDS_PICKLE, filetype="pickle")
     nonseed_df = load_data(NON_SEEDS_PICKLE, filetype="pickle")
@@ -171,13 +216,21 @@ def main():
     cpd_df = load_data(COMPOUND_SUMMARY_TSV, filetype="tsv")
 
     seed_compounds, nonseed_compounds = get_compound_sets(seed_df, nonseed_df)
-    plot_bar_and_venn(seed_compounds, nonseed_compounds)
+    only_seed, only_nonseed, common = plot_bar_and_venn(seed_compounds, nonseed_compounds)
 
     count_unique_modules(cpd_df)
     count_unique_pathways(cpd_df)
     compound_summary_stats(cpd_df)
     plot_kegg_modules_per_compound(cpd_df)
     plot_kegg_pathways_per_compound(cpd_df)
+
+    for subset_name, subset_set in zip(['Seed-unique', 'Non-Seed-unique', 'Overlap'], 
+                                       [only_seed, only_nonseed, common]):
+        top_pathways = get_top_pathways(subset_set, cpd_df, topN=10)
+        print(f"\nTop KEGG pathways for {subset_name}:")
+        for pw, count in top_pathways:
+            print(f"{pw}: {count}")
+        plot_top_pathways(top_pathways, subset_name)
 
 
 if __name__ == "__main__":

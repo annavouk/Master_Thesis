@@ -41,19 +41,20 @@ def clean_gtdb_metadata(df):
     - Cleaned DataFrame with standardized 'assembly_accession' column
     """
     columns_to_keep = [
+        'accession',
         'genome_size',
         'gtdb_taxonomy',
         'ncbi_genbank_assembly_accession',
         'ncbi_taxonomy',
         'checkm_completeness',
-        'checkm_contamination'
+        'checkm_contamination',
+        'gtdb_genome_representative'
     ]
     df_filtered = df[columns_to_keep].copy()
 
     # Remove NCBI-style prefixes if present
     df_filtered['ncbi_genbank_assembly_accession'] = df_filtered['ncbi_genbank_assembly_accession'].str.replace(
-        r'^(GCA_|GCF_)', '', regex=True
-    )
+        r'^(GCA_|GCF_)', '', regex=True)
 
     # Rename for merging
     df_filtered.rename(columns={'ncbi_genbank_assembly_accession': 'assembly_accession'}, inplace=True)
@@ -91,25 +92,25 @@ def main():
     patric_df.rename(columns={'index': 'patric_id'}, inplace=True)
 
     gtdb_df = load_data(GTDB_METADATA, filetype='tsv')
-    
+
 
     # Clean & merge
     patric_clean = clean_patric_accessions(patric_df)
     gtdb_clean = clean_gtdb_metadata(gtdb_df)
 
-    #print("PATRIC unique assembly_accession:", patric_clean['assembly_accession'].nunique())
-    #print("GTDB unique assembly_accession:", gtdb_clean['assembly_accession'].nunique())
-    #print("PATRIC duplicates:", patric_clean['assembly_accession'].duplicated().sum())
-    #print("GTDB duplicates:", gtdb_clean['assembly_accession'].duplicated().sum())
+    print("PATRIC unique assembly_accession:", patric_clean['assembly_accession'].nunique())
+    print("GTDB unique assembly_accession:", gtdb_clean['assembly_accession'].nunique())
+    print("PATRIC duplicates:", patric_clean['assembly_accession'].duplicated().sum())
+    print("GTDB duplicates:", gtdb_clean['assembly_accession'].duplicated().sum())
 
     merged_df = merge_metadata(patric_clean, gtdb_clean, output_path=COMPACT_METADATA)
 
-    #print("Rows in merged:", merged_df.shape[0])
-    #print("Unique patric_id in merged:", merged_df['patric_id'].nunique())
-    #print("patric_id duplicates:", merged_df['patric_id'].duplicated().sum())
+    print("Rows in merged:", merged_df.shape[0])
+    print("Unique patric_id in merged:", merged_df['patric_id'].nunique())
+    print("patric_id duplicates:", merged_df['patric_id'].duplicated().sum())
 
-    #unmatched = merged_df[merged_df['gtdb_taxonomy'].isna()]
-    #print(unmatched[['patric_id', 'assembly_accession']].head(20))
+    unmatched = merged_df[merged_df['gtdb_taxonomy'].isna()]
+    print(unmatched[['patric_id', 'assembly_accession']].head(20))
 
 
 if __name__ == "__main__":
