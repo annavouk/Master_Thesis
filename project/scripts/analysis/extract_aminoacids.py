@@ -9,7 +9,7 @@ amino_acids = [
     'threonine', 'tryptophan', 'tyrosine', 'valine'
 ]
 
-regex_pattern = '|'.join(amino_acids)
+regex_pattern = '|'.join(L-amino_acids)
 
 aa_df = df[df['compound_name'].str.contains(regex_pattern, case=False, na=False)]
 

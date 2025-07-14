@@ -89,8 +89,10 @@ def merge_with_metadata(summary, metadata_df):
         pd.DataFrame: merged DataFrame with extra columns for genome length and taxonomy.
     """
     # Ensure correct column name for merging
-    metadata_df['patric_id'] = metadata_df['patric_id'].astype(str)
-    summary['patric_id'] = summary['patric_id'].astype(str)
+    metadata_df['patric_id'] = metadata_df['patric_id'].astype(str).str.strip()
+    summary['patric_id'] = summary['patric_id'].astype(str).str.strip()
+    print(repr(metadata_df[metadata_df['patric_id'].str.startswith('100233')]['patric_id'].tolist()))
+
     # Merge the relevant metadata fields
     return pd.merge(
         summary,
@@ -103,7 +105,8 @@ def main():
     # Load
     seeds_df = load_data(SEEDS_PICKLE, filetype="pickle")
     non_seeds_df = load_data(NON_SEEDS_PICKLE, filetype="pickle")
-    metadata_df = load_data(COMPACT_METADATA, filetype="csv")
+    #metadata_df = load_data(COMPACT_METADATA, filetype="csv")
+    metadata_df = pd.read_csv(COMPACT_METADATA, dtype={'patric_id': str})
 
     # Analyze SEEDs
     seeds_df, most_seed, max_seed, least_seed, min_seed = seeds_per_genome(seeds_df)
