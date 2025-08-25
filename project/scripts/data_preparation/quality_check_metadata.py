@@ -10,24 +10,38 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import pandas as pd
-from utils import load_data
+
 from config import COMPACT_METADATA
+from utils import load_data
 
 
-def convert_quality_columns(df, completeness_col='checkm_completeness', contamination_col='checkm_contamination'):
+# ------------------------
+# Data conversion
+# ------------------------
+def convert_quality_columns(
+    df, completeness_col="checkm_completeness", contamination_col="checkm_contamination"
+):
     """Ensure quality columns are numeric."""
-    df[completeness_col] = pd.to_numeric(df[completeness_col], errors='coerce')
-    df[contamination_col] = pd.to_numeric(df[contamination_col], errors='coerce')
+    df[completeness_col] = pd.to_numeric(df[completeness_col], errors="coerce")
+    df[contamination_col] = pd.to_numeric(df[contamination_col], errors="coerce")
     return df
 
 
-def quality_report(df, completeness_threshold=90, contamination_threshold=5,
-                   completeness_col='checkm_completeness', contamination_col='checkm_contamination'):
+# ------------------------
+# Quality reporting
+# ------------------------
+def quality_report(
+    df,
+    completeness_threshold=90,
+    contamination_threshold=5,
+    completeness_col="checkm_completeness",
+    contamination_col="checkm_contamination",
+):
     """Print summary of genomes passing quality thresholds."""
     total = len(df)
     passing = df[
-        (df[completeness_col] >= completeness_threshold) &
-        (df[contamination_col] <= contamination_threshold)
+        (df[completeness_col] >= completeness_threshold)
+        & (df[contamination_col] <= contamination_threshold)
     ]
     n_pass = len(passing)
     percent_pass = (n_pass / total * 100) if total > 0 else 0
@@ -45,6 +59,9 @@ def quality_report(df, completeness_threshold=90, contamination_threshold=5,
     print()
 
 
+# ------------------------
+# Main
+# ------------------------
 def main():
     metadata_path = COMPACT_METADATA
 

@@ -1,0 +1,66 @@
+Summary statistics for Total_Seeds:
+count    33755.000000
+mean        98.640527
+std         13.504155
+min         44.000000
+25%         90.000000
+50%        101.000000
+75%        109.000000
+max        134.000000
+Name: Total_Seeds, dtype: float64
+
+Summary statistics for Total_non_Seeds:
+count    33755.000000
+mean       333.484313
+std         49.101554
+min        124.000000
+25%        305.000000
+50%        342.000000
+75%        369.000000
+max        442.000000
+Name: Total_non_Seeds, dtype: float64
+
+Summary statistics for Ratio:
+count    33755.000000
+mean         0.297826
+std          0.029039
+min          0.213213
+25%          0.278932
+50%          0.294671
+75%          0.312500
+max          0.536458
+Name: Ratio, dtype: float64
+
+Summary statistics for Seeds_per_Mbp (log scale):
+count    33755.000000
+mean        33.869904
+std        185.874340
+min          5.764391
+25%         20.730058
+50%         26.801680
+75%         34.461572
+max      14899.211218
+Name: Seeds_per_Mbp, dtype: float64
+
+Summary statistics for Non_Seeds_per_Mbp (log scale):
+count    33755.000000
+mean       109.061948
+std        482.510119
+min         14.660055
+25%         72.155396
+50%         90.376095
+75%        114.134398
+max      38854.805726
+Name: Non_Seeds_per_Mbp, dtype: float64
+
+Summary statistics for Ratio_per_Mbp (log scale):
+count    33755.000000
+mean         0.131394
+std          1.401468
+min          0.018303
+25%          0.056989
+50%          0.078978
+75%          0.111925
+max        112.024144
+Name: Ratio_per_Mbp, dtype: float64
+

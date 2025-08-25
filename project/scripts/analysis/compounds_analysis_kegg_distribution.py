@@ -14,16 +14,7 @@ from config import SEEDS_PICKLE, NON_SEEDS_PICKLE, COMPOUND_SUMMARY_TSV, OUTPUT_
 
 
 def genomes_per_seed(df):
-    """
-    Count the number of genomes (value == 1) per seed compound.
-
-    Args:
-        df (pd.DataFrame): Binary dataframe for seeds.
-
-    Returns:
-        tuple: Updated dataframe, seed compound with most genomes, its count,
-               seed compound with least genomes, its count.
-    """
+    """Count the number of genomes (value == 1) per seed compound."""
     genomes = df.sum()
     most_genomes = genomes.idxmax()
     least_genomes = genomes.idxmin()
@@ -38,16 +29,7 @@ def genomes_per_seed(df):
 
 
 def genomes_per_non_seed(df):
-    """
-    Count the number of genomes (value == 1) per non-seed compound.
-
-    Args:
-        df (pd.DataFrame): Binary dataframe for non-seeds.
-
-    Returns:
-        tuple: Updated dataframe, non-seed compound with most genomes, its count,
-               non-seed compound with least genomes, its count.
-    """
+    """Count the number of genomes (value == 1) per non-seed compound."""
     # Count 1s per column
     genomes = df.sum()
     most_genomes = genomes.idxmax()
@@ -63,16 +45,7 @@ def genomes_per_non_seed(df):
 
 
 def combine_seed_and_nonseed_counts(seed_counts, non_seed_counts):
-    """
-    Combine seed and non-seed genome counts into a single DataFrame.
-
-    Args:
-        seed_counts (pd.Series): Genome counts per seed compound.
-        non_seed_counts (pd.Series): Genome counts per non-seed compound.
-
-    Returns:
-        pd.DataFrame: Combined DataFrame with both counts, filling missing values with 0.
-    """
+    """Combine seed and non-seed genome counts into a single DataFrame."""
     seed_counts.name = "seed_genome_count"
     non_seed_counts.name = "non_seed_genome_count"
 
@@ -81,17 +54,7 @@ def combine_seed_and_nonseed_counts(seed_counts, non_seed_counts):
 
 
 def enrich_with_kegg_info(df, mapping_df, seed_id_col='ModelSEED ID'):
-    """
-    Enrich genome count per Seed/ non-Seed DataFrame with KEGG modules and pathways.
-
-    Args:
-        df: Main dataframe (contains ModelSEED ID)
-        mapping_df: Mapping table with ModelSEED ID, KEGG_modules, KEGG_pathways
-        seed_id_col: Column name for ModelSEED ID
-
-    Returns:
-        DataFrame enriched with columns KEGG_modules, KEGG_pathways
-    """
+    """Enrich genome count per Seed/ non-Seed DataFrame with KEGG modules and pathways."""
     # Ensure column names match
     mapping_df = mapping_df.rename(columns={"SEED_ID": "ModelSEED ID"})
 
@@ -115,18 +78,8 @@ def enrich_with_kegg_info(df, mapping_df, seed_id_col='ModelSEED ID'):
 
 
 def flatten_column(df, id_col, list_col):
-    """
-    Flattens a dataframe with a column of lists, returning a new dataframe
-    with one row per list element.
-
-    Args:
-        df (pd.DataFrame): The input dataframe.
-        id_col (str): The column to keep as the unique identifier (e.g. 'ModelSEED ID').
-        list_col (str): The column that contains lists (e.g. 'KEGG_pathways').
-
-    Returns:
-        pd.DataFrame: Flattened dataframe with columns [id_col, list_col].
-    """
+    """Flattens a dataframe with a column of lists, returning a new dataframe
+    with one row per list element."""
     # Convert string-lists to real lists if needed
     df = df.copy()
     df[list_col] = df[list_col].apply(lambda x: eval(x) if isinstance(x, str) and x.startswith('[') else x)
@@ -193,7 +146,7 @@ def main():
 
     # Explode KEGG pathways
     flat_pathway = flatten_column(enriched_df, "ModelSEED ID", "KEGG_pathways")
-    #print(flat_pathway.head())
+    print(flat_pathway.head())
 
     # Count how many seeds per pathway
     counts_pathway = flat_pathway['KEGG_pathways'].value_counts().reset_index()

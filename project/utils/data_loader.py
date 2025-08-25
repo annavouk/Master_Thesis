@@ -8,13 +8,6 @@ def load_data(filepath, filetype=None):
     """
     Load data from various formats: csv, tsv, pickle, json.
     If filetype is None, infer from file extension.
-
-    Parameters:
-    - filepath: str or pathlib.Path, path to file
-    - filetype: str or None, one of 'csv', 'tsv', 'pickle', 'json'. 
-
-    Returns:
-    - Loaded pandas DataFrame or Python object
     """
     if not filetype:
         suffix = filepath.suffix if isinstance(filepath, Path) else Path(filepath).suffix

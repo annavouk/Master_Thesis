@@ -14,8 +14,10 @@ import numpy as np
 #from utils import load_data
 from config import OUTPUT_DIR
 
-# Histogram: Distribution of KEGG pathways per seed compound
+
 df_pathways_per_seed = pd.read_csv(OUTPUT_DIR / "counts_pathways_per_seed.csv")
+
+# Histogram: Distribution of KEGG pathways per seed compound
 
 vals = df_pathways_per_seed['num_kegg_pathways']
 N = len(vals)
@@ -26,7 +28,7 @@ n, bins, patches = ax.hist(vals, bins=20, color='teal', edgecolor='black', log=T
 plt.xlabel('Number of KEGG Pathways per Seed')
 plt.ylabel('Number of Seed Compounds (log scale)')
 plt.yscale('log')
-plt.title('Distribution of KEGG Pathways per Seed (N = {N} seed compounds)')
+plt.title(f'Frequency distribution of KEGG Pathways,\nin which a KEGG compound serves as a Seed\n(N = {N} seed compounds)')
 plt.tight_layout()
 
 # Annotation
@@ -38,7 +40,7 @@ maxv = vals.max()
 
 plt.axvline(median, color='red', linestyle='--', label=f'Median = {median:.2f}')
 plt.axvline(mean, color='purple', linestyle=':', label=f'Mean = {mean:.2f}')
-plt.axvspan(mean-std, mean+std, color='purple', alpha=0.08, label=f'±1 STD = {std:.2f}')
+plt.axvspan(mean-2*std, mean+2*std, color='purple', alpha=0.08, label=f'±2 STD = {std:.2f}')
 plt.legend()
 plt.annotate(f"Min: {minv:.0f}", xy=(minv, 0), xytext=(minv, 2), color='black', fontsize=10, rotation=90)
 plt.annotate(f"Max: {maxv:.0f}", xy=(maxv, 0), xytext=(maxv, 2), color='black', fontsize=10, rotation=90)
