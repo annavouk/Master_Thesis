@@ -1,7 +1,22 @@
 *.csv
 *.tsv
 *.json
-*.pckl
-*.pkl
 *.png
+*.png.gz
+*.tree
+*.pckl
 
+.venv/
+env/
+venv/
+
+prego_cache/
+*cache/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# PREGO / JSON cache
+metadata/prego_cache/

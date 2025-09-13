@@ -1,0 +1,66 @@
+Summary statistics for Total_Seeds:
+count    33755.000000
+mean        98.640527
+std         13.504155
+min         44.000000
+25%         90.000000
+50%        101.000000
+75%        109.000000
+max        134.000000
+Name: Total_Seeds, dtype: float64
+
+Summary statistics for Total_non_Seeds:
+count    33755.000000
+mean       333.484313
+std         49.101554
+min        124.000000
+25%        305.000000
+50%        342.000000
+75%        369.000000
+max        442.000000
+Name: Total_non_Seeds, dtype: float64
+
+Summary statistics for Ratio:
+count    33755.000000
+mean         0.297826
+std          0.029039
+min          0.213213
+25%          0.278932
+50%          0.294671
+75%          0.312500
+max          0.536458
+Name: Ratio, dtype: float64
+
+Summary statistics for Seeds_per_Mbp (log scale):
+count    33755.000000
+mean        28.627638
+std         12.378651
+min          5.077716
+25%         20.606834
+50%         26.660119
+75%         34.222507
+max        175.088011
+Name: Seeds_per_Mbp, dtype: float64
+
+Summary statistics for Non_Seeds_per_Mbp (log scale):
+count    33755.000000
+mean        95.565289
+std         38.260902
+min         14.390373
+25%         71.618659
+50%         89.954123
+75%        113.431087
+max        524.692757
+Name: Non_Seeds_per_Mbp, dtype: float64
+
+
+## Kruskal-Wallis (Ratio across phyla, top10)
+H=3404.505, p=0.00e+00
+
+## Dunn post-hoc (FDR-BH, α=0.05, top10)
+Significant pairs (unique): 41
+Full p-value matrix saved to: /home/annavouk/master_thesis/output/dunn_posthoc_ratio_phylum.tsv
+
+## Correlation (Ratio vs genome_size_Mbp)
+Pearson r=-0.265, p=0.00e+00
+Spearman r=-0.274, p=0.00e+00
