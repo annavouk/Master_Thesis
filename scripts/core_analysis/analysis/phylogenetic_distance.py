@@ -1,5 +1,5 @@
 """
-Phylogeny–Trait Correlation Analysis
+Phylogeny-Trait Correlation Analysis
 
 This script tests the relationship between phylogenetic distances and 
 genome-level metabolic traits (Seeds_per_Mbp, Non_Seeds_per_Mbp, Ratio_per_Mbp).

@@ -8,7 +8,6 @@ per megabase (Mbp). The analysis includes:
 1. Statistical tests:
     - Kruskal-Wallis tests to detect biome-level heterogeneity.
     - Dunn's post-hoc tests with FDR correction for pairwise contrasts.
-    - Effect sizes (Cliff's delta, median differences) to assess the magnitude of contrasts independently of sample size.
 
 2. Visualizations:
     - Boxplots with significance annotations for each metric across biomes.
@@ -40,48 +39,49 @@ from config import(
 from utils import load_data, split_and_clean_taxonomy, TAXON_PLURALS, LABEL_MAP
 
 
-# ----------------------------
-# Helper Cliff's delta
-# ----------------------------
-def cliffs_delta(x, y):
-    """
-    Compute Cliff's delta effect size between two groups.
-    0 = no effect
-    +/- 1 = complete separation
-    """
-    nx, ny = len(x), len(y)
-    greater = sum(i > j for i in x for j in y)
-    less = sum(i < j for i in x for j in y)
-    delta = (greater - less) / (nx * ny)
-    return delta
+BIOME_ORDER = ["Soil", "Marine", "Freshwater"]
 
 
-# ----------------------------
-# Effect sizes and median diffs
-# ----------------------------
-def compute_effects(df, metric, group_col="main_biome"):
-    """Compute pairwise Cliff's delta and median difference for metric across groups."""
+def subsample_and_test(df, metrics, group_col="main_biome", n=1000, reps=50, random_state=42):
+    """
+    Run Kruskal-Wallis and Dunn's post-hoc on random subsamples
+    with equal sample size per biome.
+    """
+    rng = np.random.default_rng(random_state)
     results = []
-    groups = df[group_col].dropna().unique()
 
-    for g1, g2 in itertools.combinations(groups, 2):
-        x = df.loc[df[group_col] == g1, metric].dropna()
-        y = df.loc[df[group_col] == g2, metric].dropna()
+    valid_biomes = [b for b, count in df[group_col].value_counts().items() if count >= n]
+    df = df[df[group_col].isin(valid_biomes)]
 
-        delta = cliffs_delta(x, y)
-        med_diff = np.median(x) - np.median(y)
+    for rep in range(reps):
+        sampled = (
+            df.groupby(group_col, group_keys=False)
+              .apply(lambda x: x.sample(n=n, random_state=rng.integers(0, 1e9)))
+        )
 
-        results.append({
-            "Metric": metric,
-            "Group1": g1,
-            "Group2": g2,
-            "Median_Group1": np.median(x),
-            "Median_Group2": np.median(y),
-            "Median_Diff": med_diff,
-            "Cliffs_Delta": delta
-        })
+        for col in metrics:
+            groups = [sampled.loc[sampled[group_col] == b, col].dropna().values
+                      for b in valid_biomes]
+            if len(groups) < 2:
+                continue
 
-    return pd.DataFrame(results)
+            # Kruskal
+            H, p = kruskal(*groups)
+
+            # Dunn's (FDR)
+            dunn_df = sp.posthoc_dunn(
+                sampled[[group_col, col]].dropna(),
+                val_col=col, group_col=group_col, p_adjust="fdr_bh"
+            ).reindex(index=valid_biomes, columns=valid_biomes)
+
+            results.append({
+                "Replicate": rep,
+                "Metric": col,
+                "Kruskal_H": H,
+                "Kruskal_p": p,
+                "Dunn": dunn_df
+            })
+    return results
 
 
 # -------------------------------
@@ -150,7 +150,7 @@ def plot_boxplot_by_biome(
 
     if log_scale:
         ax.set_yscale("log")
-        ylabel = ylabel or f"Log10({column})"
+        ylabel = ylabel or f"{LABEL_MAP.get(column, column)} (log scale)"
     else:
         ylabel = ylabel or LABEL_MAP.get(column, column)
 
@@ -162,7 +162,8 @@ def plot_boxplot_by_biome(
     ax.set_xlabel(xlabel)
     
     # Enforce consistent order
-    order = df[group_col].dropna().unique().tolist()
+    present = [b for b in BIOME_ORDER if b in df[group_col].dropna().unique()]
+    order = present
 
     sns.boxplot(data=df, x=group_col, y=column, palette=palette, ax=ax, order=order)
 
@@ -294,8 +295,8 @@ def plot_heatmap_mean_ratio(df, taxon="phylum", top_n=15, save_dir=None):
         .reset_index()
     )
 
-    # Pivot for heatmap
-    pivot = grouped.pivot(index=taxon, columns="main_biome", values="Ratio")
+    present = [b for b in BIOME_ORDER if b in grouped["main_biome"].unique()]
+    pivot = grouped.pivot(index=taxon, columns="main_biome", values="Ratio").reindex(columns=present)
 
     # Plot
     fig, ax = plt.subplots(figsize=(6, 8))
@@ -359,35 +360,33 @@ def main():
 
         sub = merged.copy()
 
-        if "per_Mbp" in col:
-            sub = sub[sub[col] > 0]
-
-        biomes = sub["main_biome"].dropna().unique().tolist()
-        groups = [sub.loc[sub["main_biome"] == b, col].dropna() for b in biomes]
+        # Kruskal-Wallis
+        present = [b for b in BIOME_ORDER if b in sub["main_biome"].dropna().unique()]
         
-        # Remove empty groups
-        biomes_nonempty = [b for b, g in zip(biomes, groups) if len(g) > 0]
-        groups_nonempty = [g for g in groups if len(g) > 0]
+        groups_ordered = [sub.loc[sub["main_biome"] == b, col].dropna().values for b in present]
 
+        biomes_nonempty = [b for b, g in zip(present, groups_ordered) if len(g) > 0]
+        groups_nonempty = [g for g in groups_ordered if len(g) > 0]
+        
         if len(groups_nonempty) < 2:
             print(f"Skipping {col}: <2 non-empty biomes.")
             continue
 
-        # Kruskal-Wallis
         H, p = kruskal(*groups_nonempty)
         kruskal_results[col] = {"H_stat": H, "p_value": p}
-        kruskal_results[col].update({b: len(g) for b, g in zip(biomes_nonempty, groups_nonempty)})
+
+        for b, g in zip(biomes_nonempty, groups_nonempty):
+            kruskal_results[col][b] = len(g)
         print(f"Kruskal-Wallis H={H:.2f}, p={p:.2e}")
 
         # Dunn's post-hoc
         posthoc = None
-        if len(groups_nonempty) >= 3:
-            posthoc = sp.posthoc_dunn(groups_nonempty, p_adjust="fdr_bh")
-            posthoc.index = posthoc.columns = biomes_nonempty
+        if len(present) >= 3:
+            posthoc = sp.posthoc_dunn(
+                sub[["main_biome", col]].dropna(),
+                val_col=col, group_col="main_biome", p_adjust="fdr_bh"
+            ).reindex(index=present, columns=present)
             dunn_results[col] = posthoc
-            print(posthoc)
-        else:
-            print("Dunn skipped (only 2 groups).")
 
         # Plot for each metric
         plot_boxplot_by_biome(
@@ -401,7 +400,7 @@ def main():
         )
 
     # Save stats
-    save_stats(kruskal_results, OUTPUT_DIR / "kruskal_results_biomes.tsv")
+    save_stats(kruskal_results, OUTPUT_DIR / "kruskal_biomes.tsv")
 
     # Save all Dunn’s results into one file
     with open(OUTPUT_DIR / "dunn_posthoc_biomes.tsv", "w") as f:
@@ -410,22 +409,6 @@ def main():
             df.to_csv(f, sep="\t")
             f.write("\n")
     print("Saved all Dunn’s results to dunn_posthoc_biomes.tsv")
-
-    # Collect effect sizes for all metrics
-    effect_dfs = []
-    for col in metrics:
-        eff = compute_effects(merged, metric=col, group_col="main_biome")
-        eff["Metric"] = col
-        effect_dfs.append(eff)
-
-    # Save all effect sizes into one file
-    with open(OUTPUT_DIR / "effect_sizes_biomes.tsv", "w") as f:
-        for eff in effect_dfs:
-            metric = eff["Metric"].iloc[0]
-            f.write(f"# Effect sizes {metric}\n")
-            eff.to_csv(f, sep="\t", index=False)
-            f.write("\n")
-    print("Saved all effect sizes to effect_sizes_biomes.tsv")
 
     # Extra plots
     # Stacked barplot (mean)
@@ -455,6 +438,26 @@ def main():
         top_n=15,
         save_dir=plot_dir,
     )
+
+    # Robustness check with subsampling
+    subsample_results = subsample_and_test(merged, metrics, n=1000, reps=50)
+
+    # Save Kruskal results from subsampling
+    kruskal_summary = pd.DataFrame([
+        {"Rep": r["Replicate"], "Metric": r["Metric"],
+         "H": r["Kruskal_H"], "p": r["Kruskal_p"]}
+        for r in subsample_results
+    ])
+    kruskal_summary.to_csv(OUTPUT_DIR / "kruskal_subsampling.tsv",
+                           sep="\t", index=False)
+
+    # Save Dunn’s results from subsampling
+    with open(OUTPUT_DIR / "dunn_posthoc_subsampling.tsv", "w") as f:
+        for r in subsample_results:
+            if r["Dunn"] is not None:
+                f.write(f"# Rep {r['Replicate']} Metric {r['Metric']}\n")
+                r["Dunn"].to_csv(f, sep="\t")
+                f.write("\n")
 
 
 if __name__ == "__main__":

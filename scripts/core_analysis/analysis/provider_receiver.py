@@ -1,28 +1,41 @@
 """
 Metabolic Interaction Analysis
 
+This script builds feeding matrices (provider-receiver) for specific genome subsets,
+based on metadata filters (biome, phylum, ratio thresholds, custom IDs).
+
 Modes:
-- In-memory (default): computes full feeding matrices in RAM, exports edge lists, heatmap, summary.
+- In-memory (default): computes full provider-receiver matrices in RAM, exports edge lists, summary.
 - Blockwise (--blockwise): processes large datasets in blocks, saves matrices + edge lists directly to CSVs.
 
 Usage:
-    python3 scripts/analysis/provider_receiver.py --subset 200 --plot --save-plot
-    python3 scripts/analysis/provider_receiver.py --blockwise --block-size 1000 --out-prefix run1
+    python3 scripts/core_analysis/analysis/provider_receiver.py --subset 200 
+    python3 scripts/core_analysis/analysis/provider_receiver.py --blockwise --block-size 1000 --out-prefix all
+    python3 provider_receiver.py --by-biome Soil
+    python3 provider_receiver.py --taxon-rank phylum --taxa Halobacteriota Cyanobacteria --cross-taxa-only
+    python3 provider_receiver.py --taxon-rank family --taxa Planctomycetaceae Verrucomicrobiaceae
+
+Note:
+    Blockwise mode processes the entire dataset in chunks (ignores downstream filtering by taxonomy/biome).
 """
 
 import sys
 from pathlib import Path
-import argparse
 
 sys.path.append(str(Path(__file__).resolve().parents[3]))
 
+import argparse
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
 
-from config import SEEDS_PICKLE, NON_SEEDS_PICKLE, OUTPUT_DIR, PLOTS_DIR
-from utils import load_data, plot_histogram
+from config import(
+    SEEDS_PICKLE,
+    NON_SEEDS_PICKLE,
+    COMPACT_METADATA_WITH_BIOME_TSV,
+    METABOLIC_POTENTIAL_TSV,
+    OUTPUT_DIR,
+    )
+from utils import load_data, parse_taxonomy
 
 
 # ------------------------
@@ -38,12 +51,8 @@ def make_output_paths(prefix="feeding", blockwise=False, subset=None):
     suf = "_" + "_".join(suffix) if suffix else ""
 
     return {
-        "raw_matrix": OUTPUT_DIR / f"{prefix}_matrix_raw{suf}.csv",
-        "norm_matrix": OUTPUT_DIR / f"{prefix}_matrix_norm{suf}.csv",
-        "raw_edges": OUTPUT_DIR / f"{prefix}_edgelist_raw{suf}.csv",
-        "norm_edges": OUTPUT_DIR / f"{prefix}_edgelist_norm{suf}.csv",
-        "heatmap": PLOTS_DIR / f"{prefix}_feeding_heatmap{suf}.png",
-        "histogram": PLOTS_DIR / f"{prefix}_edgelist_norm_hist{suf}.png",
+        "matrix": OUTPUT_DIR / f"{prefix}_matrix{suf}.csv",
+        "edges": OUTPUT_DIR / f"{prefix}_edgelist{suf}.csv",
     }
 
 
@@ -51,33 +60,37 @@ def make_output_paths(prefix="feeding", blockwise=False, subset=None):
 # Core computations
 # ------------------------
 def compute_feeding_matrix(seeds_df, non_seeds_df):
-    """Return (raw, normalized) feeding matrices (in-memory)."""
-    common_cpds = seeds_df.columns.intersection(non_seeds_df.columns)
+    """Return feeding matrices (in-memory)."""
+    common_cpds = seeds_df.columns.intersection(non_seeds_df.columns)     # compounds that are both seeds and non-seeds
     seeds_bin = seeds_df[common_cpds].values
     nonseeds_bin = non_seeds_df[common_cpds].values
 
-    abs_mat = np.dot(nonseeds_bin, seeds_bin.T)
-    total_seeds = seeds_bin.sum(axis=1)
-    total_seeds[total_seeds == 0] = 1
-    norm_mat = abs_mat / total_seeds[np.newaxis, :]
-    return abs_mat, norm_mat
+    abs_mat = np.dot(nonseeds_bin, seeds_bin.T)    # raw counts of shared compounds
+
+    return abs_mat
 
 
-def compute_feeding_matrix_blockwise(seeds_df, non_seeds_df, paths, raw_thr=1, norm_thr=0.1, block_size=1000):
-    """Compute feeding matrix block-by-block and save directly to CSVs and edge lists."""
+def feeding_matrix_to_edgelist(feeding_df, threshold):
+    """Convert feeding matrix (DataFrame) to edge list with scores >= threshold."""
+    feeding_df = feeding_df.rename_axis(index="provider", columns="receiver").copy()
+
+    edges = feeding_df.stack().reset_index(name="score")
+    edges = edges[(edges["score"] >= threshold) & (edges["provider"] != edges["receiver"])]
+
+    return edges
+
+
+def compute_feeding_matrix_blockwise(seeds_df, non_seeds_df, paths, raw_thr=1, block_size=1000):
+    """Compute feeding matrix block-by-block (for interactions across the full dataset)."""
     common_cpds = seeds_df.columns.intersection(non_seeds_df.columns)
     seeds_bin = seeds_df[common_cpds].values.astype(np.uint8)
     nonseeds_bin = non_seeds_df[common_cpds].values.astype(np.uint8)
 
-    total_seeds = seeds_bin.sum(axis=1)
-    total_seeds[total_seeds == 0] = 1
     n_providers = nonseeds_bin.shape[0]
 
     # Init CSVs
-    pd.DataFrame(columns=seeds_df.index).to_csv(paths["raw_matrix"], index=False)
-    pd.DataFrame(columns=seeds_df.index).to_csv(paths["norm_matrix"], index=False)
-    pd.DataFrame(columns=["provider", "receiver", "score"]).to_csv(paths["raw_edges"], index=False)
-    pd.DataFrame(columns=["provider", "receiver", "score"]).to_csv(paths["norm_edges"], index=False)
+    pd.DataFrame(columns=seeds_df.index).to_csv(paths["matrix"], index=False)
+    pd.DataFrame(columns=["provider", "receiver", "score"]).to_csv(paths["edges"], index=False)
 
     # Process in chunks
     for start in range(0, n_providers, block_size):
@@ -85,146 +98,62 @@ def compute_feeding_matrix_blockwise(seeds_df, non_seeds_df, paths, raw_thr=1, n
         block = nonseeds_bin[start:end, :]
 
         abs_block = np.dot(block, seeds_bin.T)
-        norm_block = abs_block / total_seeds[np.newaxis, :]
 
         providers = non_seeds_df.index[start:end]
         receivers = seeds_df.index
 
         # Save matrices
-        raw_df = pd.DataFrame(abs_block, index=providers, columns=receivers)
-        norm_df = pd.DataFrame(norm_block, index=providers, columns=receivers)
-        raw_df.to_csv(paths["raw_matrix"], mode="a", header=False)
-        norm_df.to_csv(paths["norm_matrix"], mode="a", header=False)
+        feeding_matrix_df = pd.DataFrame(abs_block, index=providers, columns=receivers)
+        feeding_matrix_df.index.name = None
+        feeding_matrix_df.columns.name = None
+        feeding_matrix_df.to_csv(paths["matrix"], mode="a", header=False)
 
         # Save edges
-        raw_edges = (
-            raw_df.stack().reset_index(name="score")
+        edges = (
+            feeding_matrix_df
+            .rename_axis(index="provider", columns="receiver")
+            .stack()
+            .reset_index(name="score")
             .query("score >= @raw_thr and provider != receiver")
-        )
-        norm_edges = (
-            norm_df.stack().reset_index(name="score")
-            .query("score >= @norm_thr and provider != receiver")
-        )
-        raw_edges.to_csv(paths["raw_edges"], mode="a", header=False, index=False)
-        norm_edges.to_csv(paths["norm_edges"], mode="a", header=False, index=False)
+            )
 
+        edges.to_csv(paths["edges"], mode="a", header=False, index=False)
+        
         print(f"Processed block {start}:{end} / {n_providers}")
 
     print(f"\nBlockwise outputs saved:")
     for k, v in paths.items():
-        if "heatmap" not in k and "histogram" not in k:
-            print(f" - {v}")
+        print(f" - {v}")
 
 
 # ------------------------
-# Visualization helpers
+# Filtering helpers
 # ------------------------
-def feeding_matrix_to_edgelist(feeding_df, threshold):
-    """Convert feeding matrix (DataFrame) to edge list for network export."""
-    feeding_df = feeding_df.copy()
-    feeding_df.index.name = "provider"
-    feeding_df.columns.name = "receiver"
-
-    edges = feeding_df.stack().reset_index(name="score")
-    edges = edges[(edges["score"] >= threshold) & (edges["provider"] != edges["receiver"])]
-    return edges
-
-
-def plot_feeding_heatmap(feeding_df, top_n=30, save_path=None, show=False):
-    """Plot heatmap of top N providers/receivers."""
-    top_providers = feeding_df.sum(axis=1).nlargest(top_n).index
-    top_receivers = feeding_df.sum(axis=0).nlargest(top_n).index
-    sub = feeding_df.loc[top_providers, top_receivers]
-
-    fig, ax = plt.subplots(figsize=(12, 10))
-    cax = ax.matshow(sub, cmap="viridis")
-    fig.colorbar(cax)
-
-    ax.set_xticks(np.arange(len(top_receivers)))
-    ax.set_xticklabels(top_receivers, rotation=45, ha="right")
-    ax.set_yticks(np.arange(len(top_providers)))
-    ax.set_yticklabels(top_providers)
-
-    ax.set_title("Feeding Matrix Heatmap (Top Providers/Receivers)")
-    ax.set_xlabel("Recipient Genome")
-    ax.set_ylabel("Provider Genome")
-    plt.tight_layout()
-
-    if save_path:
-        plt.savefig(save_path, dpi=300)
-        print(f"Heatmap saved to {save_path}")
-    if show:
-        plt.show()
-    plt.close(fig)
-
-
-def plot_top_providers_receivers_from_edges(edges_csv, top_n=20, plots_dir=PLOTS_DIR, prefix="feeding"):
-    """Generate barplots of top providers and receivers from an edge list CSV."""
-    edges = pd.read_csv(edges_csv)
-
-    provider_strength = edges.groupby("provider")["score"].sum().nlargest(top_n)
-    receiver_strength = edges.groupby("receiver")["score"].sum().nlargest(top_n)
-
-    # Providers
-    plt.figure(figsize=(10, 6))
-    sns.barplot(x=provider_strength.values, y=provider_strength.index, color="steelblue")
-    plt.xlabel("Total normalized feeding score")
-    plt.ylabel("Provider genome")
-    plt.title(f"Top {top_n} Providers")
-    plt.tight_layout()
-    out_path = plots_dir / f"{prefix}_top{top_n}_providers.png"
-    plt.savefig(out_path, dpi=300)
-    plt.close()
-
-    # Receivers
-    plt.figure(figsize=(10, 6))
-    sns.barplot(x=receiver_strength.values, y=receiver_strength.index, color="darkorange")
-    plt.xlabel("Total normalized feeding score")
-    plt.ylabel("Receiver genome")
-    plt.title(f"Top {top_n} Receivers")
-    plt.tight_layout()
-    out_path = plots_dir / f"{prefix}_top{top_n}_receivers.png"
-    plt.savefig(out_path, dpi=300)
-    plt.close()
-
-    print(f"Top {top_n} providers/receivers barplots saved to {plots_dir}")
-
-
-def print_top_providers_receivers(feeding_df, top_n=10):
-    """Print top providers and receivers."""
-    top_providers = feeding_df.sum(axis=1).nlargest(top_n)
-    top_receivers = feeding_df.sum(axis=0).nlargest(top_n)
-    print("\nTop providers:\n", top_providers.to_string())
-    print("\nTop receivers:\n", top_receivers.to_string())
+def filter_cross_taxa_edges(edges, df, rank):
+    """Keep only edges where provider and receiver belong to different taxa at given rank."""
+    tax_map = df.set_index("patric_id")[rank].to_dict()
+    edges[f"{rank}_provider"] = edges["provider"].map(tax_map)
+    edges[f"{rank}_receiver"] = edges["receiver"].map(tax_map)
+    return edges[edges[f"{rank}_provider"] != edges[f"{rank}_receiver"]]
 
 
 # ------------------------
 # Run modes
 # ------------------------
-def run_in_memory(seeds_df, non_seeds_df, args, paths):
-    abs_mat, norm_mat = compute_feeding_matrix(seeds_df, non_seeds_df)
+def run_in_memory(seeds_df, non_seeds_df, df, args, paths):
+    abs_mat = compute_feeding_matrix(seeds_df, non_seeds_df)
     feeding_raw = pd.DataFrame(abs_mat, index=non_seeds_df.index, columns=seeds_df.index)
-    feeding_norm = pd.DataFrame(norm_mat, index=non_seeds_df.index, columns=seeds_df.index)
 
-    feeding_raw.to_csv(paths["raw_matrix"])
-    feeding_norm.to_csv(paths["norm_matrix"])
+    feeding_raw.to_csv(paths["matrix"])
     print("Feeding matrices saved (in-memory mode).")
 
-    feeding_matrix_to_edgelist(feeding_norm, threshold=args.norm_threshold)\
-        .to_csv(paths["norm_edges"], index=False)
-    feeding_matrix_to_edgelist(feeding_raw, threshold=args.raw_threshold)\
-        .to_csv(paths["raw_edges"], index=False)
+    edges = feeding_matrix_to_edgelist(feeding_raw, threshold=args.raw_threshold)
+
+    if args.cross_taxa_only:
+        edges = filter_cross_taxa_edges(edges, df, args.taxon_rank)
+
+    edges.to_csv(paths["edges"], index=False)
     print("Edge lists exported.")
-
-    if args.plot or args.save_plot:
-        plot_feeding_heatmap(
-            feeding_norm,
-            top_n=30,
-            save_path=paths["heatmap"] if args.save_plot else None,
-            show=args.plot,
-        )
-
-    print_top_providers_receivers(feeding_norm, top_n=10)
 
 
 def run_blockwise(seeds_df, non_seeds_df, args, paths):
@@ -232,71 +161,123 @@ def run_blockwise(seeds_df, non_seeds_df, args, paths):
         seeds_df, non_seeds_df,
         paths=paths,
         raw_thr=args.raw_threshold,
-        norm_thr=args.norm_threshold,
         block_size=args.block_size
     )
-    print("Heatmap not available in blockwise mode (matrix too large).")
+
+
+# ------------------------
+# Debug
+# ------------------------
+def debug_report(df, seeds_df, non_seeds_df, label=""):
+    print(f"\n[DEBUG {label}]")
+    print(" - genomes left in metadata:", df.shape[0])
+    print(" - seeds_df shape:", seeds_df.shape)
+    print(" - non_seeds_df shape:", non_seeds_df.shape)
+    print(" - common compounds:", len(seeds_df.columns.intersection(non_seeds_df.columns)))
+    if "main_biome" in df.columns:
+        print(" - biomes:", df["main_biome"].unique())
+    if "phylum" in df.columns:
+        print(" - phyla:", df["phylum"].unique()[:10])
 
 
 # ------------------------
 # Main
 # ------------------------
 def main():
-    parser = argparse.ArgumentParser(description="Metabolic Interaction Analysis (Feeding Matrix)")
-    parser.add_argument("--norm-threshold", type=float, default=0.1,
-                        help="Threshold for normalized feeding edge list (default=0.1)")
+    parser = argparse.ArgumentParser(description="Metabolic Interaction Analysis (Feeding Matrix, raw only)")
+    parser.add_argument("--low-high-ratio", nargs=2, type=float, default=None,
+                        help="Compare genomes from low vs high ratio groups (e.g. --low-high-ratio 0.2 0.4)")
+    parser.add_argument("--similar-ratio", nargs=2, type=float, default=None,
+                        help="Restrict to genomes with ratio between two thresholds (e.g. --similar-ratio 0.30 0.32)")
+    parser.add_argument("--taxon-rank", type=str, default="phylum",
+                        help="Taxonomic rank to filter (e.g. phylum, class, order, family, genus)")
+    parser.add_argument("--taxa", nargs="+", type=str, default=None,
+                        help="List of taxa to include (e.g. --taxa Halobacteriota Cyanobacteria)")
+    parser.add_argument("--cross-taxa-only", action="store_true",
+                        help="Keep only edges between different taxa at the chosen rank")
+    parser.add_argument("--by-biome", type=str, default=None,
+                        help="Restrict analysis to genomes from this biome (e.g. Soil, Marine, Freshwater)")
+    parser.add_argument("--debug", action="store_true",
+                        help="Print debug info after filtering")
     parser.add_argument("--raw-threshold", type=int, default=1,
-                        help="Threshold for raw feeding edge list (default=1)")
-    parser.add_argument("--plot", action="store_true", help="Show heatmap plot interactively")
-    parser.add_argument("--save-plot", action="store_true", help="Save heatmap plot as PNG")
+                        help="Threshold for feeding edge list (default=1)")
     parser.add_argument("--subset", type=int, default=None, help="Subset of genomes for testing")
     parser.add_argument("--blockwise", action="store_true", help="Use blockwise computation")
     parser.add_argument("--block-size", type=int, default=1000, help="Block size for blockwise mode")
-    parser.add_argument("--out-prefix", type=str, default="feeding", help="Prefix for output files")
-    parser.add_argument("--histogram", action="store_true", help="Make histogram of normalized edge scores")
-    parser.add_argument("--barplots", action="store_true", 
-                    help="Generate barplots of top providers/receivers from normalized edge list")
+    parser.add_argument("--out-prefix", type=str, default=None,
+                        help="Prefix for output files (if not given, auto-generated)")
+
     args = parser.parse_args()
 
     # Load Pickle dataframes
     seeds_df = load_data(SEEDS_PICKLE, filetype="pickle")
     non_seeds_df = load_data(NON_SEEDS_PICKLE, filetype="pickle")
+
+    # Load metadata
+    biomes_df = load_data(COMPACT_METADATA_WITH_BIOME_TSV, filetype="tsv")
+    ratio_df = load_data(METABOLIC_POTENTIAL_TSV, filetype="tsv")
+
+    # Keep only "main_biome" from metadata
+    biomes_df = biomes_df[["patric_id", "main_biome"]]
+
+    # Merge + parse taxonomy
+    df = ratio_df.merge(biomes_df, on="patric_id", how="left")
+    df = parse_taxonomy(df)
+
+    # Apply filters on metadata
+    if args.by_biome:
+        df = df[df["main_biome"] == args.by_biome]
+
+    if args.taxa:
+        df = df[df[args.taxon_rank].isin(args.taxa)]
+
+    if args.low_high_ratio:
+        low_thr, high_thr = args.low_high_ratio
+        df = df[(df["Ratio"] <= low_thr) | (df["Ratio"] >= high_thr)]
+
+    if args.similar_ratio:
+        low_thr, high_thr = args.similar_ratio
+        df = df[(df["Ratio"] >= low_thr) & (df["Ratio"] <= high_thr)]
+
     if args.subset:
-        seeds_df = seeds_df.head(args.subset)
-        non_seeds_df = non_seeds_df.head(args.subset)
+        df = df.head(args.subset)
 
-    paths = make_output_paths(prefix=args.out_prefix, blockwise=args.blockwise, subset=args.subset)
+    # Subset matrices
+    selected_ids = df["patric_id"].astype(str).tolist()
+    seeds_df = seeds_df.loc[seeds_df.index.isin(selected_ids)]
+    non_seeds_df = non_seeds_df.loc[non_seeds_df.index.isin(selected_ids)]
 
+    if args.debug:
+        debug_report(df, seeds_df, non_seeds_df, "after filters")
+
+    # Build output prefix
+    if args.out_prefix:
+        prefix = args.out_prefix
+    else:
+        suffix_parts = []
+        if args.low_high_ratio:
+            low_thr, high_thr = args.low_high_ratio
+            suffix_parts.append(f"ratio{low_thr}-{high_thr}")
+        if args.similar_ratio:
+            low_thr, high_thr = args.similar_ratio
+            suffix_parts.append(f"similar{low_thr}-{high_thr}")
+        if args.taxa:
+            taxa_str = "-".join(args.taxa)
+            suffix_parts.append(f"{args.taxon_rank}-{taxa_str}")
+        if args.cross_taxa_only:
+            suffix_parts.append("cross")
+        if args.by_biome:
+            suffix_parts.append(f"biome-{args.by_biome}")
+
+        prefix = "feeding" + ("_" + "_".join(suffix_parts) if suffix_parts else "")
+
+    paths = make_output_paths(prefix=prefix, blockwise=args.blockwise, subset=args.subset)
+
+    # Run computation
     if args.blockwise:
         run_blockwise(seeds_df, non_seeds_df, args, paths)
     else:
-        run_in_memory(seeds_df, non_seeds_df, args, paths)
-
-    # Extra: Histogram from normalized edge list
-    if args.histogram:
-        edges = pd.read_csv(paths["norm_edges"])
-        
-        plot_histogram(
-            edges,
-            column="score",
-            bins=50,
-            color="teal",
-            title="Distribution of normalized feeding scores",
-            xlabel="Normalized feeding score",
-            save_plot=True,
-            plot_path=paths["histogram"],
-            log_scale=False,
-            method="2std"
-        )
-
-    # Extra: Barplots from normalized edge list
-    if args.barplots:
-        plot_top_providers_receivers_from_edges(
-            edges_csv=paths["norm_edges"],
-            top_n=20,
-            plots_dir=PLOTS_DIR,
-            prefix=args.out_prefix
-        )
+        run_in_memory(seeds_df, non_seeds_df, df, args, paths)
 
 
 if __name__ == "__main__":

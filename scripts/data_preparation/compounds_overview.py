@@ -23,13 +23,23 @@ from matplotlib_venn import venn2
 from collections import Counter
 
 from config import (
-    SEEDS_PICKLE,  # input
-    NON_SEEDS_PICKLE,  # input
-    COMPOUND_SUMMARY_TSV,  # input
+    SEEDS_PICKLE,    # input
+    NON_SEEDS_PICKLE,    # input
+    COMPOUND_SUMMARY_TSV,    # input
+    KEGG_PATHWAYS_TSV,    # map KEGG pathways to their names
     OUTPUT_DIR,
     EXPLORATORY_PLOTS_DIR,
 )
 from utils import load_data, get_compound_sets
+
+
+# ------------------------
+# Helper
+# ------------------------
+def load_kegg_pathway_names(kegg_df):
+    """Convert KEGG pathway ID to name mapping df into a dictionary."""
+    mapping_dict = dict(zip(kegg_df["Source ID"], kegg_df["Name"]))
+    return mapping_dict
 
 
 # ------------------------
@@ -227,7 +237,7 @@ def plot_kegg_pathways_per_compound(cpd_df, out_path):
 # ------------------------
 # Bar plots
 # ------------------------
-def get_top_pathways(summary_df, topN=10):
+def get_top_pathways(summary_df, mapping_dict, topN=10, include_ids=False):
     """Identify top pathways of compounds of study."""
     sub = summary_df.copy()
     path_lists = (
@@ -241,7 +251,17 @@ def get_top_pathways(summary_df, topN=10):
     )
     paths_flat = [p for lst in path_lists for p in lst if p and p.lower() != "nan"]
     counter = Counter(paths_flat)
-    return counter.most_common(topN)
+    top_paths = counter.most_common(topN)
+
+    top_paths_named = []
+    for pid, count in top_paths:
+        if include_ids:
+            label = f"{pid} - {mapping_dict.get(pid, 'Unknown pathway')}"
+        else:
+            label = mapping_dict.get(pid, pid)
+        top_paths_named.append((label, count))
+
+    return top_paths_named
 
 
 def plot_top_pathways(top_pathways, out_path):
@@ -377,12 +397,11 @@ def main():
     seed_df = load_data(SEEDS_PICKLE, filetype="pickle")
     nonseed_df = load_data(NON_SEEDS_PICKLE, filetype="pickle")
     cpd_df = load_data(COMPOUND_SUMMARY_TSV, filetype="tsv")
+    kegg_df = load_data(KEGG_PATHWAYS_TSV, filetype="tsv")
 
     # Summary stats
     compound_summary_stats(cpd_df)
 
-    outfile = Path(OUTPUT_DIR) / "unique_kegg_reactions.tsv"
-    outfile.parent.mkdir(parents=True, exist_ok=True)
     out_path = Path(EXPLORATORY_PLOTS_DIR)
     out_path.mkdir(parents=True, exist_ok=True)
 
@@ -391,9 +410,8 @@ def main():
     count_unique(cpd_df, "KEGG_pathways")
     reactions = count_unique(cpd_df, "KEGG_reactions", return_list=False)
     unique_reactions = pd.DataFrame({"KEGG_reaction_ID": sorted(reactions)})
-    unique_reactions.to_csv(outfile, sep="\t", index=False)
-    print(f"Saved {len(unique_reactions)} unique reactions to {outfile}")
-
+    print(f"Compounds of interest participate in {len(unique_reactions)} reactions.")
+   
     # Venn
     seed_compounds, nonseed_compounds = get_compound_sets(seed_df, nonseed_df)
     plot_venn(seed_compounds, nonseed_compounds, out_path)
@@ -403,7 +421,8 @@ def main():
     plot_kegg_pathways_per_compound(cpd_df, out_path)
 
     # Top pathways
-    top_pathways = get_top_pathways(cpd_df, topN=10)
+    mapping_dict = load_kegg_pathway_names(kegg_df)
+    top_pathways = get_top_pathways(cpd_df, mapping_dict, topN=10, include_ids=True)
     plot_top_pathways(top_pathways, out_path)
 
     # Top modules
