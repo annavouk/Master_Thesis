@@ -14,8 +14,8 @@ EXPLORATORY_PLOTS_DIR = PLOTS_DIR / "exploratory_data_overview"
 METABOLIC_POTENTIAL_PLOTS_DIR = PLOTS_DIR / "metabolic_potential"
 BIOMES_PLOTS_DIR = PLOTS_DIR / "biomes_analysis"
 SEED_NODE_FREQUENCY_PLOTS_DIR = PLOTS_DIR / "seed_node_frequency"
-
-MAPS_DIR = PROJECT_ROOT / "maps"
+AMINOACIDS_PLOTS_DIR = PLOTS_DIR / "aminoacids_analysis"
+INTERACTION_ANALYSIS_PLOTS_DIR = PLOTS_DIR / "interaction_analysis"
 
 METADATA_DIR = PROJECT_ROOT / "metadata"
 METADATA_RAW_DIR = METADATA_DIR / "raw"
@@ -63,6 +63,7 @@ KEGG_DATA_JSON = METADATA_RAW_DIR / "kegg_flat_entries.json"
 FAILED_KEGG_IDS_TXT = METADATA_RAW_DIR / "failed_kegg_ids.txt"
 PREGO_ENVIRONMENTS_JSON = METADATA_RAW_DIR / "prego_environments.json"
 FAILED_PREGO_IDS_TXT = METADATA_RAW_DIR / "failed_prego_ids.txt"
+KEGG_PATHWAYS_TSV = METADATA_RAW_DIR / "KEGG.pathways"
 
 # Processed Genome Metadata
 PREGO_INPUT_CSV = METADATA_DIR / "patric_gtdb_metadata.csv"
@@ -88,3 +89,11 @@ AR_TREE_PRUNED = GTDB_TREES_DIR/ "ar53_subset_pruned.tree"
 # Output Files
 METABOLIC_POTENTIAL_TSV = OUTPUT_DIR / "metabolic_potential_summary.tsv"
 GENOME_PATHWAY_COVERAGE = OUTPUT_DIR / "genome_pathway_coverage.tsv"
+
+# Providers-receivers matrix (interaction analysis)
+OUTLIERS_OVERLAP_MATRIX_CSV = OUTPUT_DIR / "feeding_ratio0.24-0.36_matrix.csv"
+OUTLIERS_OVERLAP_EDGELIST_CSV = OUTPUT_DIR / "feeding_ratio0.24-0.36_edgelist.csv"
+SIMILAR_RATIO_MATRIX_CSV = OUTPUT_DIR / "feeding_similar0.3-0.32_matrix.csv"
+SIMILAR_RATIO_EDGELIST_CSV = OUTPUT_DIR / "feeding_similar0.3-0.32_edgelist.csv"
+PHYLA_OVERLAP_MATRIX_CSV = OUTPUT_DIR / "feeding_phylum-Halobacteriota-Cyanobacteria_cross_matrix.csv"
+PHYLA_OVERLAP_EDGELIST_CSV = OUTPUT_DIR / "feeding_phylum-Halobacteriota-Cyanobacteria_cross_edgelist.csv"
