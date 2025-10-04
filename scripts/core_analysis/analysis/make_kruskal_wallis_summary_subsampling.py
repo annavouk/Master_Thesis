@@ -13,8 +13,8 @@ sys.path.append(str(Path(__file__).resolve().parents[3]))
 import pandas as pd
 
 from config import (
-    KRUSKAL_BIOMES_SUBSAMPLES_TSV,    # input
-    KRUSKAL_BIOMES_SUMMARY_TSV,        # output
+    KRUSKAL_BIOMES_SUBSAMPLES_TSV,  # input
+    KRUSKAL_BIOMES_SUMMARY_TSV,  # output
 )
 from utils import load_data
 
@@ -28,17 +28,19 @@ def make_summary(subs):
         n_sig = len(sig)
         perc_sig = (n_sig / len(g)) * 100 if len(g) > 0 else 0
 
-        rows.append({
-            "Metric": metric,
-            "Significant_reps": f"{n_sig} / {len(g)}",
-            "Percent_significant": perc_sig,
-            "Median_H_sig": sig["H"].median() if n_sig > 0 else None,
-            "Min_H_sig": sig["H"].min() if n_sig > 0 else None,
-            "Max_H_sig": sig["H"].max() if n_sig > 0 else None,
-            "Median_p_sig": sig["p"].median() if n_sig > 0 else None,
-            "Min_p_sig": sig["p"].min() if n_sig > 0 else None,
-            "Max_p_sig": sig["p"].max() if n_sig > 0 else None,
-        })
+        rows.append(
+            {
+                "Metric": metric,
+                "Significant_reps": f"{n_sig} / {len(g)}",
+                "Percent_significant": perc_sig,
+                "Median_H_sig": sig["H"].median() if n_sig > 0 else None,
+                "Min_H_sig": sig["H"].min() if n_sig > 0 else None,
+                "Max_H_sig": sig["H"].max() if n_sig > 0 else None,
+                "Median_p_sig": sig["p"].median() if n_sig > 0 else None,
+                "Min_p_sig": sig["p"].min() if n_sig > 0 else None,
+                "Max_p_sig": sig["p"].max() if n_sig > 0 else None,
+            }
+        )
 
     return pd.DataFrame(rows)
 

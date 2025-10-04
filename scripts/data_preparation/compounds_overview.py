@@ -23,10 +23,10 @@ from matplotlib_venn import venn2
 from collections import Counter
 
 from config import (
-    SEEDS_PICKLE,    # input
-    NON_SEEDS_PICKLE,    # input
-    COMPOUND_SUMMARY_TSV,    # input
-    KEGG_PATHWAYS_TSV,    # map KEGG pathways to their names
+    SEEDS_PICKLE,  # input
+    NON_SEEDS_PICKLE,  # input
+    COMPOUND_SUMMARY_TSV,  # input
+    KEGG_PATHWAYS_TSV,  # map KEGG pathways to their names
     OUTPUT_DIR,
     EXPLORATORY_PLOTS_DIR,
 )
@@ -276,14 +276,15 @@ def plot_top_pathways(top_pathways, out_path):
     # Add labels (counts)
     for i, v in enumerate(pw_counts):
         for rect, count in zip(ax.patches, pw_counts):
-            plt.text(rect.get_width() + max(pw_counts) * 0.01, rect.get_y() + rect.get_height()/2, str(count), va='center', ha='left')
+            plt.text(
+                rect.get_width() + max(pw_counts) * 0.01,
+                rect.get_y() + rect.get_height() / 2,
+                str(count),
+                va="center",
+                ha="left",
+            )
         plt.text(
-            v + max(pw_counts) * 0.01,
-            i,
-            str(v),
-            va="center",
-            ha="left",
-            fontsize=9
+            v + max(pw_counts) * 0.01, i, str(v), va="center", ha="left", fontsize=9
         )
 
     plt.xlabel("Number of Compounds")
@@ -322,14 +323,15 @@ def plot_top_modules(top_modules, out_path):
     # Add labels (counts)
     for i, v in enumerate(m_counts):
         for rect, count in zip(ax.patches, m_counts):
-            plt.text(rect.get_width() + max(m_counts) * 0.01, rect.get_y() + rect.get_height()/2, str(count), va='center', ha='left')
+            plt.text(
+                rect.get_width() + max(m_counts) * 0.01,
+                rect.get_y() + rect.get_height() / 2,
+                str(count),
+                va="center",
+                ha="left",
+            )
         plt.text(
-            v + max(m_counts) * 0.01,
-            i,
-            str(v),
-            va="center",
-            ha="left",
-            fontsize=9
+            v + max(m_counts) * 0.01, i, str(v), va="center", ha="left", fontsize=9
         )
 
     plt.xlabel("Number of Compounds")
@@ -411,7 +413,7 @@ def main():
     reactions = count_unique(cpd_df, "KEGG_reactions", return_list=False)
     unique_reactions = pd.DataFrame({"KEGG_reaction_ID": sorted(reactions)})
     print(f"Compounds of interest participate in {len(unique_reactions)} reactions.")
-   
+
     # Venn
     seed_compounds, nonseed_compounds = get_compound_sets(seed_df, nonseed_df)
     plot_venn(seed_compounds, nonseed_compounds, out_path)

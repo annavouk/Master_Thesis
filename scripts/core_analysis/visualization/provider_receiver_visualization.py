@@ -2,7 +2,7 @@
 Metabolic Interaction Visualization
 
 This script processes edge lists of microbial interactions, computes top providers/receivers, and
-plots heatmaps. 
+plots heatmaps.
 """
 
 import sys
@@ -16,9 +16,9 @@ import matplotlib.pyplot as plt
 
 from config import (
     OUTLIERS_L2H_EDGES_CSV,  # input
-    OUTLIERS_H2L_EDGES_CSV,    # input
-    CYANO_HALO_EDGES_CSV,    # input
-    METABOLIC_POTENTIAL_TSV,    # metadata
+    OUTLIERS_H2L_EDGES_CSV,  # input
+    CYANO_HALO_EDGES_CSV,  # input
+    METABOLIC_POTENTIAL_TSV,  # metadata
     INTERACTION_ANALYSIS_PLOTS_DIR,  # plots dir
 )
 from utils import load_data
@@ -68,7 +68,9 @@ def plot_heatmap(matrix, title, output_prefix=None, figsize=(10, 6)):
 
     # Save figure if output_prefix is provided
     if output_prefix is not None:
-        plt.savefig(INTERACTION_ANALYSIS_PLOTS_DIR/f"{output_prefix}_heatmap.png", dpi=300)
+        plt.savefig(
+            INTERACTION_ANALYSIS_PLOTS_DIR / f"{output_prefix}_heatmap.png", dpi=300
+        )
 
     plt.close(fig)
 
@@ -77,33 +79,38 @@ def plot_heatmap(matrix, title, output_prefix=None, figsize=(10, 6)):
 # Process
 # --------------------
 def process_edge_file(edges_file, meta, output_prefix, heatmap_title):
-    edges = load_data(edges_file, filetype='csv')
-    
+    edges = load_data(edges_file, filetype="csv")
+
     # Compute flows
     outflow, inflow = compute_flow(edges)
     top_providers, top_receivers = select_top_nodes(outflow, inflow)
-    
+
     # Filter edges & pivot
     sub_edges = filter_edges(edges, top_providers, top_receivers)
     matrix = pivot_edges_to_matrix(sub_edges)
-    
+
     # Plot heatmap
     plot_heatmap(matrix, title=heatmap_title, output_prefix=output_prefix)
 
-    
     # Metadata join & save
-    top_providers_meta = pd.DataFrame({"patric_id": top_providers}).merge(meta, on="patric_id", how="left")
-    top_receivers_meta = pd.DataFrame({"patric_id": top_receivers}).merge(meta, on="patric_id", how="left")
-    
+    top_providers_meta = pd.DataFrame({"patric_id": top_providers}).merge(
+        meta, on="patric_id", how="left"
+    )
+    top_receivers_meta = pd.DataFrame({"patric_id": top_receivers}).merge(
+        meta, on="patric_id", how="left"
+    )
+
     top_providers_meta.to_csv(
-        INTERACTION_ANALYSIS_PLOTS_DIR/f"{output_prefix}_top10_providers.tsv",
-        sep="\t", index=False
+        INTERACTION_ANALYSIS_PLOTS_DIR / f"{output_prefix}_top10_providers.tsv",
+        sep="\t",
+        index=False,
     )
     top_receivers_meta.to_csv(
-        INTERACTION_ANALYSIS_PLOTS_DIR/f"{output_prefix}_top10_receivers.tsv",
-        sep="\t", index=False
+        INTERACTION_ANALYSIS_PLOTS_DIR / f"{output_prefix}_top10_receivers.tsv",
+        sep="\t",
+        index=False,
     )
-    
+
     print(f"Processed {edges_file}: heatmap + top providers/receivers saved")
 
 
@@ -115,8 +122,8 @@ def main():
     INTERACTION_ANALYSIS_PLOTS_DIR.mkdir(parents=True, exist_ok=True)
 
     # Load metadata
-    meta = load_data(METABOLIC_POTENTIAL_TSV, filetype='tsv')
-    
+    meta = load_data(METABOLIC_POTENTIAL_TSV, filetype="tsv")
+
     # Process each dataset
     process_edge_file(CYANO_HALO_EDGES_CSV, meta, "cyano_halo", "Heatmap: Cyano-Halo")
     process_edge_file(OUTLIERS_L2H_EDGES_CSV, meta, "low2high", "Heatmap: Low to High")

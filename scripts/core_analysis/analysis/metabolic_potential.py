@@ -13,12 +13,12 @@ sys.path.append(str(Path(__file__).resolve().parents[3]))
 
 import pandas as pd
 
-from config import( 
-    SEEDS_PICKLE,    # input
-    NON_SEEDS_PICKLE,    # input
-    COMPACT_METADATA_TSV,    # input
-    METABOLIC_POTENTIAL_TSV,    # output
-    )
+from config import (
+    SEEDS_PICKLE,  # input
+    NON_SEEDS_PICKLE,  # input
+    COMPACT_METADATA_TSV,  # input
+    METABOLIC_POTENTIAL_TSV,  # output
+)
 from utils import load_data
 
 
@@ -73,8 +73,14 @@ def merge_with_metadata(summary, metadata_df):
         how="left",
     )
     merged = merged[
-        ["patric_id", "Total_Seeds", "Total_non_Seeds", "Ratio",
-         "genome_size_Mbp", "gtdb_taxonomy"]
+        [
+            "patric_id",
+            "Total_Seeds",
+            "Total_non_Seeds",
+            "Ratio",
+            "genome_size_Mbp",
+            "gtdb_taxonomy",
+        ]
     ]
 
     return merged
@@ -82,9 +88,7 @@ def merge_with_metadata(summary, metadata_df):
 
 def normalize_per_mbp(df):
     """Add normalization per genome size (Mbp) for Seeds and non-Seeds."""
-    df["Seeds_per_Mbp"] = df["Total_Seeds"] / df["genome_size_Mbp"].replace(
-        0, pd.NA
-    )
+    df["Seeds_per_Mbp"] = df["Total_Seeds"] / df["genome_size_Mbp"].replace(0, pd.NA)
     df["Non_Seeds_per_Mbp"] = df["Total_non_Seeds"] / df["genome_size_Mbp"].replace(
         0, pd.NA
     )
@@ -100,7 +104,9 @@ def main():
     seeds_df = load_data(SEEDS_PICKLE, filetype="pickle")
     non_seeds_df = load_data(NON_SEEDS_PICKLE, filetype="pickle")
 
-    metadata_df = load_data(COMPACT_METADATA_TSV, filetype="tsv", dtype={"patric_id": str})
+    metadata_df = load_data(
+        COMPACT_METADATA_TSV, filetype="tsv", dtype={"patric_id": str}
+    )
 
     # Analyze Seeds
     seeds_df, most_seed, max_seed, least_seed, min_seed = total_per_genome(seeds_df)
@@ -118,9 +124,8 @@ def main():
     summary = make_metabolic_potential_summary(seeds_df, non_seeds_df)
     summary_full = merge_with_metadata(summary, metadata_df)
     summary_full["genome_size_Mbp"] = pd.to_numeric(
-    summary_full["genome_size_Mbp"], errors="coerce"
+        summary_full["genome_size_Mbp"], errors="coerce"
     )
-
 
     # Print summary stats
     print(summary_full.head())
@@ -143,7 +148,7 @@ def main():
     # Save output (normalized with per Mbp columns)
     out_file = Path(METABOLIC_POTENTIAL_TSV)
     out_file.parent.mkdir(parents=True, exist_ok=True)
-    summary_norm.to_csv(METABOLIC_POTENTIAL_TSV, sep='\t', index=False)
+    summary_norm.to_csv(METABOLIC_POTENTIAL_TSV, sep="\t", index=False)
     print(f"Saved metabolic potential summary to: {out_file}")
 
 

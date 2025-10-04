@@ -18,7 +18,6 @@ Note:
     Blockwise mode processes the entire dataset in chunks (ignores downstream filtering by taxonomy/biome).
 """
 
-
 import sys
 from pathlib import Path
 
@@ -29,13 +28,13 @@ import pandas as pd
 import numpy as np
 import json
 
-from config import(
-    SEEDS_PICKLE,    # input seeds
-    NON_SEEDS_PICKLE,    # input non-seeds
-    COMPACT_METADATA_WITH_BIOME_TSV,    # input metadata (taxonomy)
-    METABOLIC_POTENTIAL_TSV,    # input (seed/non-seed ratio)
-    OUTPUT_DIR,    # output directory
-    )
+from config import (
+    SEEDS_PICKLE,  # input seeds
+    NON_SEEDS_PICKLE,  # input non-seeds
+    COMPACT_METADATA_WITH_BIOME_TSV,  # input metadata (taxonomy)
+    METABOLIC_POTENTIAL_TSV,  # input (seed/non-seed ratio)
+    OUTPUT_DIR,  # output directory
+)
 from utils import load_data, parse_taxonomy
 
 
@@ -68,11 +67,13 @@ def make_output_paths(prefix="feeding", blockwise=False, subset=None):
 # ------------------------
 def compute_feeding_matrix(seeds_df, non_seeds_df):
     """Return feeding matrices (in-memory)."""
-    common_cpds = seeds_df.columns.intersection(non_seeds_df.columns)     # compounds that are both seeds and non-seeds
+    common_cpds = seeds_df.columns.intersection(
+        non_seeds_df.columns
+    )  # compounds that are both seeds and non-seeds
     seeds_bin = seeds_df[common_cpds].values
     nonseeds_bin = non_seeds_df[common_cpds].values
 
-    abs_mat = np.dot(nonseeds_bin, seeds_bin.T)    # raw counts of shared compounds
+    abs_mat = np.dot(nonseeds_bin, seeds_bin.T)  # raw counts of shared compounds
 
     return abs_mat
 
@@ -82,12 +83,16 @@ def feeding_matrix_to_edgelist(feeding_df, threshold):
     feeding_df = feeding_df.rename_axis(index="provider", columns="receiver").copy()
 
     edges = feeding_df.stack().reset_index(name="score")
-    edges = edges[(edges["score"] >= threshold) & (edges["provider"] != edges["receiver"])]
+    edges = edges[
+        (edges["score"] >= threshold) & (edges["provider"] != edges["receiver"])
+    ]
 
     return edges
 
 
-def compute_feeding_matrix_blockwise(seeds_df, non_seeds_df, paths, raw_thr=1, block_size=1000):
+def compute_feeding_matrix_blockwise(
+    seeds_df, non_seeds_df, paths, raw_thr=1, block_size=1000
+):
     """Compute feeding matrix block-by-block (for interactions across the full dataset)."""
     common_cpds = seeds_df.columns.intersection(non_seeds_df.columns)
     seeds_bin = seeds_df[common_cpds].values.astype(np.uint8)
@@ -96,7 +101,9 @@ def compute_feeding_matrix_blockwise(seeds_df, non_seeds_df, paths, raw_thr=1, b
     n_providers = nonseeds_bin.shape[0]
 
     # Init CSVs
-    pd.DataFrame(columns=["provider", "receiver", "score"]).to_csv(paths["edges"], index=False)
+    pd.DataFrame(columns=["provider", "receiver", "score"]).to_csv(
+        paths["edges"], index=False
+    )
 
     # Process in chunks
     for start in range(0, n_providers, block_size):
@@ -112,15 +119,14 @@ def compute_feeding_matrix_blockwise(seeds_df, non_seeds_df, paths, raw_thr=1, b
 
         # Save edges
         edges = (
-            feeding_matrix_df
-            .rename_axis(index="provider", columns="receiver")
+            feeding_matrix_df.rename_axis(index="provider", columns="receiver")
             .stack()
             .reset_index(name="score")
             .query("score >= @raw_thr and provider != receiver")
-            )
+        )
 
         edges.to_csv(paths["edges"], mode="a", header=False, index=False)
-        
+
         print(f"Processed block {start}:{end} / {n_providers}")
 
     print(f"\nBlockwise outputs saved:")
@@ -144,7 +150,9 @@ def filter_cross_taxa_edges(edges, df, rank):
 # ------------------------
 def run_in_memory(seeds_df, non_seeds_df, df, args, paths):
     abs_mat = compute_feeding_matrix(seeds_df, non_seeds_df)
-    feeding_raw = pd.DataFrame(abs_mat, index=non_seeds_df.index, columns=seeds_df.index)
+    feeding_raw = pd.DataFrame(
+        abs_mat, index=non_seeds_df.index, columns=seeds_df.index
+    )
 
     edges = feeding_matrix_to_edgelist(feeding_raw, threshold=args.raw_threshold)
 
@@ -153,16 +161,17 @@ def run_in_memory(seeds_df, non_seeds_df, df, args, paths):
 
     edges.to_csv(paths["edges"], index=False)
     print("Edge lists exported.")
-    
+
     return edges
 
 
 def run_blockwise(seeds_df, non_seeds_df, args, paths):
     compute_feeding_matrix_blockwise(
-        seeds_df, non_seeds_df,
+        seeds_df,
+        non_seeds_df,
         paths=paths,
         raw_thr=args.raw_threshold,
-        block_size=args.block_size
+        block_size=args.block_size,
     )
 
 
@@ -174,7 +183,9 @@ def debug_report(df, seeds_df, non_seeds_df, label=""):
     print(" - genomes left in metadata:", df.shape[0])
     print(" - seeds_df shape:", seeds_df.shape)
     print(" - non_seeds_df shape:", non_seeds_df.shape)
-    print(" - common compounds:", len(seeds_df.columns.intersection(non_seeds_df.columns)))
+    print(
+        " - common compounds:", len(seeds_df.columns.intersection(non_seeds_df.columns))
+    )
     if "main_biome" in df.columns:
         print(" - biomes:", df["main_biome"].unique())
     if "phylum" in df.columns:
@@ -186,28 +197,65 @@ def debug_report(df, seeds_df, non_seeds_df, label=""):
 # ------------------------
 def main():
     parser = argparse.ArgumentParser(description="Metabolic Interaction Analysis")
-    parser.add_argument("--low-high-ratio", nargs=2, type=float, default=None,
-                        help="Thresholds for defining low vs high ratio groups (e.g. --low-high-ratio 0.2 0.4). "
-                             "If given, the script will compute both low→high and high→low interactions.")
-    parser.add_argument("--similar-ratio", nargs=2, type=float, default=None,
-                        help="Restrict to genomes with ratio between two thresholds (e.g. --similar-ratio 0.30 0.32)")
-    parser.add_argument("--taxon-rank", type=str, default="phylum",
-                        help="Taxonomic rank to filter (e.g. phylum, class, order, family, genus)")
-    parser.add_argument("--taxa", nargs="+", type=str, default=None,
-                        help="List of taxa to include")
-    parser.add_argument("--cross-taxa-only", action="store_true",
-                        help="Keep only edges between different taxa at the chosen rank")
-    parser.add_argument("--by-biome", type=str, default=None,
-                        help="Restrict analysis to genomes from this biome (e.g. Soil, Marine, Freshwater)")
-    parser.add_argument("--debug", action="store_true",
-                        help="Print debug info after filtering")
-    parser.add_argument("--raw-threshold", type=int, default=1,
-                        help="Threshold for feeding edge list (default=1)")
-    parser.add_argument("--subset", type=int, default=None, help="Subset of genomes for testing")
-    parser.add_argument("--blockwise", action="store_true", help="Use blockwise computation")
-    parser.add_argument("--block-size", type=int, default=1000, help="Block size for blockwise mode")
-    parser.add_argument("--out-prefix", type=str, default=None,
-                        help="Prefix for output files (if not given, auto-generated)")
+    parser.add_argument(
+        "--low-high-ratio",
+        nargs=2,
+        type=float,
+        default=None,
+        help="Thresholds for defining low vs high ratio groups (e.g. --low-high-ratio 0.2 0.4). "
+        "If given, the script will compute both low→high and high→low interactions.",
+    )
+    parser.add_argument(
+        "--similar-ratio",
+        nargs=2,
+        type=float,
+        default=None,
+        help="Restrict to genomes with ratio between two thresholds (e.g. --similar-ratio 0.30 0.32)",
+    )
+    parser.add_argument(
+        "--taxon-rank",
+        type=str,
+        default="phylum",
+        help="Taxonomic rank to filter (e.g. phylum, class, order, family, genus)",
+    )
+    parser.add_argument(
+        "--taxa", nargs="+", type=str, default=None, help="List of taxa to include"
+    )
+    parser.add_argument(
+        "--cross-taxa-only",
+        action="store_true",
+        help="Keep only edges between different taxa at the chosen rank",
+    )
+    parser.add_argument(
+        "--by-biome",
+        type=str,
+        default=None,
+        help="Restrict analysis to genomes from this biome (e.g. Soil, Marine, Freshwater)",
+    )
+    parser.add_argument(
+        "--debug", action="store_true", help="Print debug info after filtering"
+    )
+    parser.add_argument(
+        "--raw-threshold",
+        type=int,
+        default=1,
+        help="Threshold for feeding edge list (default=1)",
+    )
+    parser.add_argument(
+        "--subset", type=int, default=None, help="Subset of genomes for testing"
+    )
+    parser.add_argument(
+        "--blockwise", action="store_true", help="Use blockwise computation"
+    )
+    parser.add_argument(
+        "--block-size", type=int, default=1000, help="Block size for blockwise mode"
+    )
+    parser.add_argument(
+        "--out-prefix",
+        type=str,
+        default=None,
+        help="Prefix for output files (if not given, auto-generated)",
+    )
 
     args = parser.parse_args()
 
@@ -225,7 +273,7 @@ def main():
     # Merge and taxonomy split
     df = ratio_df.merge(biomes_df, on="patric_id", how="left")
     df = parse_taxonomy(df)
-    
+
     df["patric_id"] = df["patric_id"].astype(str)
     seeds_df.index = seeds_df.index.astype(str)
     non_seeds_df.index = non_seeds_df.index.astype(str)
@@ -256,7 +304,9 @@ def main():
         low_group = df[df["Ratio"] <= low_thr]["patric_id"].tolist()
         high_group = df[df["Ratio"] >= high_thr]["patric_id"].tolist()
         print(f"[DEBUG] low_thr={low_thr}, high_thr={high_thr}")
-        print(f"[DEBUG] low_group={len(low_group)} genomes, high_group={len(high_group)} genomes")
+        print(
+            f"[DEBUG] low_group={len(low_group)} genomes, high_group={len(high_group)} genomes"
+        )
 
         runs = [
             (low_group, high_group, "low2high"),
@@ -274,18 +324,24 @@ def main():
         if args.debug:
             debug_report(df, seeds_sub, nonseeds_sub, f"after filters ({suffix})")
 
-        prefix = f"{args.out_prefix}_{suffix}" if args.out_prefix else f"feeding_{suffix}"
-        paths = make_output_paths(prefix=prefix, blockwise=args.blockwise, subset=args.subset)
+        prefix = (
+            f"{args.out_prefix}_{suffix}" if args.out_prefix else f"feeding_{suffix}"
+        )
+        paths = make_output_paths(
+            prefix=prefix, blockwise=args.blockwise, subset=args.subset
+        )
 
-        print(f"[DEBUG] seeds_df shape: {seeds_sub.shape}, non_seeds_df shape: {nonseeds_sub.shape}")
-        
+        print(
+            f"[DEBUG] seeds_df shape: {seeds_sub.shape}, non_seeds_df shape: {nonseeds_sub.shape}"
+        )
+
         if args.blockwise:
             run_blockwise(seeds_sub, nonseeds_sub, args, paths)
             edges_count = "written in chunks"
         else:
             edges = run_in_memory(seeds_sub, nonseeds_sub, df, args, paths)
             edges_count = len(edges)
-            
+
         summary = {
             "mode": "blockwise" if args.blockwise else "in-memory",
             "suffix": suffix,
@@ -294,8 +350,8 @@ def main():
             "raw_threshold": args.raw_threshold,
             "edges_path": str(paths["edges"]),
             "edges_count": edges_count,
-            }
-        
+        }
+
         if args.by_biome:
             summary["biome"] = args.by_biome
         if args.taxa:

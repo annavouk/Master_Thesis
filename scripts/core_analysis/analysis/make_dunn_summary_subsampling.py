@@ -14,9 +14,9 @@ import pandas as pd
 from io import StringIO
 
 from config import (
-    DUNN_BIOMES_SUBSAMPLES_TSV,    # input
-    DUNN_BIOMES_SUMMARY_TSV,    # output
-    )
+    DUNN_BIOMES_SUBSAMPLES_TSV,  # input
+    DUNN_BIOMES_SUMMARY_TSV,  # output
+)
 
 
 def make_dunn_summary(subs_path):
@@ -35,7 +35,8 @@ def make_dunn_summary(subs_path):
                     melted.columns = ["Group1", "Group2", "p_value"]
                     melted = melted[melted["Group1"] != melted["Group2"]]
                     melted["Pair"] = melted.apply(
-                        lambda r: " vs ".join(sorted([r["Group1"], r["Group2"]])), axis=1
+                        lambda r: " vs ".join(sorted([r["Group1"], r["Group2"]])),
+                        axis=1,
                     )
                     melted["Metric"] = metric
                     melted["Rep"] = rep
@@ -69,14 +70,22 @@ def make_dunn_summary(subs_path):
 
     # Summary
     summary = (
-        dunn_subs_long
-        .groupby(["Metric", "Pair"])
+        dunn_subs_long.groupby(["Metric", "Pair"])
         .agg(
             Significant_reps=("p_value", lambda x: f"{(x<0.05).sum()} / {len(x)}"),
-            Percent_significant=("p_value", lambda x: 100*(x<0.05).mean()),
-            Median_p_sig=("p_value", lambda x: x[x<0.05].median() if any(x<0.05) else None),
-            Min_p_sig=("p_value", lambda x: x[x<0.05].min() if any(x<0.05) else None),
-            Max_p_sig=("p_value", lambda x: x[x<0.05].max() if any(x<0.05) else None),
+            Percent_significant=("p_value", lambda x: 100 * (x < 0.05).mean()),
+            Median_p_sig=(
+                "p_value",
+                lambda x: x[x < 0.05].median() if any(x < 0.05) else None,
+            ),
+            Min_p_sig=(
+                "p_value",
+                lambda x: x[x < 0.05].min() if any(x < 0.05) else None,
+            ),
+            Max_p_sig=(
+                "p_value",
+                lambda x: x[x < 0.05].max() if any(x < 0.05) else None,
+            ),
         )
         .reset_index()
     )

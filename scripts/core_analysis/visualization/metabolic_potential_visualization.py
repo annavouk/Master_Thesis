@@ -767,7 +767,7 @@ def main():
     df = pd.concat([df, taxonomy_df], axis=1)
 
     stats_file = OUTPUT_DIR / "metabolic_potential_summary_stats.txt"
-    
+
     # Clear file for summary statistics
     open(stats_file, "w").close()
 
@@ -911,7 +911,7 @@ def main():
     plot_dunn_heatmap(
         dunn_df, save_path=METABOLIC_POTENTIAL_PLOTS_DIR / "dunn_posthoc_heatmap.png"
     )
-    
+
     # Scatter: seeds vs non-seeds, colored by genome size
     plot_scatter_continuous_colormap(
         df,
@@ -925,7 +925,7 @@ def main():
     # Correlation stats (consistent with plot)
     pearson_r, p1, spearman_r, p2 = correlation_stats(
         df, x="Total_Seeds", y="Total_non_Seeds", log_x=False, log_y=False
-        )
+    )
 
     with open(stats_file, "a", encoding="utf-8") as f:
         f.write("\n## Correlation (Seeds vs Non-Seeds)\n")

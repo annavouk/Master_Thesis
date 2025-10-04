@@ -5,6 +5,8 @@
 *.png.gz
 *.tree
 *.pckl
+*Zone.Identifier
+
 
 input/seeds_per_genome.pkl
 input/nonseeds_per_genome.pkl

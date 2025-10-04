@@ -1,8 +1,8 @@
 """
 Biome-level Metabolic Potential Analysis
 
-This script compares genome-level metabolic potential across soil, marine and freshwater biomes. 
-Metabolic potential is quantified by total seeds, total non-seeds, their ratio and values normalized 
+This script compares genome-level metabolic potential across soil, marine and freshwater biomes.
+Metabolic potential is quantified by total seeds, total non-seeds, their ratio and values normalized
 per megabase (Mbp). The analysis includes:
 
 1. Statistical tests:
@@ -29,19 +29,21 @@ from scipy.stats import kruskal
 import scikit_posthocs as sp
 import itertools
 
-from config import(
-    COMPACT_METADATA_WITH_BIOME_TSV,    # input
-    METABOLIC_POTENTIAL_TSV,    # input
-    OUTPUT_DIR,    # output dir
-    BIOMES_PLOTS_DIR,    # plots dir
-    )
+from config import (
+    COMPACT_METADATA_WITH_BIOME_TSV,  # input
+    METABOLIC_POTENTIAL_TSV,  # input
+    OUTPUT_DIR,  # output dir
+    BIOMES_PLOTS_DIR,  # plots dir
+)
 from utils import load_data, split_and_clean_taxonomy, TAXON_PLURALS, LABEL_MAP
 
 
 BIOME_ORDER = ["Soil", "Marine", "Freshwater"]
 
 
-def subsample_and_test(df, metrics, group_col="main_biome", n=1000, reps=50, random_state=42):
+def subsample_and_test(
+    df, metrics, group_col="main_biome", n=1000, reps=50, random_state=42
+):
     """
     Run Kruskal-Wallis and Dunn's post-hoc on random subsamples
     with equal sample size per biome.
@@ -49,18 +51,21 @@ def subsample_and_test(df, metrics, group_col="main_biome", n=1000, reps=50, ran
     rng = np.random.default_rng(random_state)
     results = []
 
-    valid_biomes = [b for b, count in df[group_col].value_counts().items() if count >= n]
+    valid_biomes = [
+        b for b, count in df[group_col].value_counts().items() if count >= n
+    ]
     df = df[df[group_col].isin(valid_biomes)]
 
     for rep in range(reps):
-        sampled = (
-            df.groupby(group_col, group_keys=False)
-              .apply(lambda x: x.sample(n=n, random_state=rng.integers(0, 1e9)))
+        sampled = df.groupby(group_col, group_keys=False).apply(
+            lambda x: x.sample(n=n, random_state=rng.integers(0, 1e9))
         )
 
         for col in metrics:
-            groups = [sampled.loc[sampled[group_col] == b, col].dropna().values
-                      for b in valid_biomes]
+            groups = [
+                sampled.loc[sampled[group_col] == b, col].dropna().values
+                for b in valid_biomes
+            ]
             if len(groups) < 2:
                 continue
 
@@ -70,16 +75,20 @@ def subsample_and_test(df, metrics, group_col="main_biome", n=1000, reps=50, ran
             # Dunn's (FDR)
             dunn_df = sp.posthoc_dunn(
                 sampled[[group_col, col]].dropna(),
-                val_col=col, group_col=group_col, p_adjust="fdr_bh"
+                val_col=col,
+                group_col=group_col,
+                p_adjust="fdr_bh",
             ).reindex(index=valid_biomes, columns=valid_biomes)
 
-            results.append({
-                "Replicate": rep,
-                "Metric": col,
-                "Kruskal_H": H,
-                "Kruskal_p": p,
-                "Dunn": dunn_df
-            })
+            results.append(
+                {
+                    "Replicate": rep,
+                    "Metric": col,
+                    "Kruskal_H": H,
+                    "Kruskal_p": p,
+                    "Dunn": dunn_df,
+                }
+            )
     return results
 
 
@@ -120,7 +129,7 @@ def add_significance_annotations(
 
         # Vertical level for this bracket (empirical spacing)
         if ax.get_yscale() == "log":
-            y = y_base * (1.12 ** i)    
+            y = y_base * (1.12**i)
             y_hi = y * 1.06
         else:
             step = (ymax - ymin) * gap
@@ -159,7 +168,7 @@ def plot_boxplot_by_biome(
     # x-label from LABEL_MAP
     xlabel = LABEL_MAP.get(group_col, group_col.capitalize())
     ax.set_xlabel(xlabel)
-    
+
     # Enforce consistent order
     present = [b for b in BIOME_ORDER if b in df[group_col].dropna().unique()]
     order = present
@@ -190,13 +199,13 @@ def plot_boxplot_by_biome(
 # Stacked barplot by taxon
 # -------------------------------
 def plot_stacked_by_taxon(
-    df, 
-    value_col, 
-    taxon="phylum", 
-    top_n=10, 
-    save_dir=None, 
+    df,
+    value_col,
+    taxon="phylum",
+    top_n=10,
+    save_dir=None,
     log_scale=False,
-    mode="mean"  # "mean" or "normalized"
+    mode="mean",  # "mean" or "normalized"
 ):
     """
     Plot stacked barplot for metabolic potential by taxon across biomes.
@@ -211,24 +220,18 @@ def plot_stacked_by_taxon(
 
     # Group by biome x taxon
     if mode == "mean":
-        grouped = (
-            df.groupby(["main_biome", taxon])[value_col]
-            .mean()
-            .reset_index()
-        )
+        grouped = df.groupby(["main_biome", taxon])[value_col].mean().reset_index()
     else:
-        grouped = (
-            df.groupby(["main_biome", taxon])[value_col]
-            .sum()
-            .reset_index()
-        )
+        grouped = df.groupby(["main_biome", taxon])[value_col].sum().reset_index()
 
     # Keep only top-N taxa
     top_taxa = df[taxon].value_counts().head(top_n).index
     grouped = grouped[grouped[taxon].isin(top_taxa)]
 
     if mode == "normalized":
-        grouped[value_col] = grouped.groupby("main_biome")[value_col].transform(lambda x: x / x.sum())
+        grouped[value_col] = grouped.groupby("main_biome")[value_col].transform(
+            lambda x: x / x.sum()
+        )
 
     # Pivot for stacked barplot
     pivot = grouped.pivot(index="main_biome", columns=taxon, values=value_col).fillna(0)
@@ -249,18 +252,19 @@ def plot_stacked_by_taxon(
     ax.set_ylabel(ylabel)
 
     if mode == "mean":
-        ax.set_title(f"Metabolic Potential across Biomes (mean) by Top {top_n} {title_taxon}")
+        ax.set_title(
+            f"Metabolic Potential across Biomes (mean) by Top {top_n} {title_taxon}"
+        )
     else:
-        ax.set_title(f"Relative Contribution of Top {top_n} {title_taxon} to Metabolic Potential across Biomes")
+        ax.set_title(
+            f"Relative Contribution of Top {top_n} {title_taxon} to Metabolic Potential across Biomes"
+        )
 
     if log_scale and mode == "mean":
         ax.set_yscale("log")
 
     ax.legend(
-        bbox_to_anchor=(0.5, -0.25),
-        loc="upper center",
-        ncol=5,
-        title=title_taxon
+        bbox_to_anchor=(0.5, -0.25), loc="upper center", ncol=5, title=title_taxon
     )
 
     plt.tight_layout(rect=[0, 0.05, 1, 1])
@@ -288,18 +292,18 @@ def plot_heatmap_mean_ratio(df, taxon="phylum", top_n=15, save_dir=None):
     sub = df[df[taxon].isin(top_taxa)]
 
     # Compute mean ratios
-    grouped = (
-        sub.groupby(["main_biome", taxon])["Ratio"]
-        .mean()
-        .reset_index()
-    )
+    grouped = sub.groupby(["main_biome", taxon])["Ratio"].mean().reset_index()
 
     present = [b for b in BIOME_ORDER if b in grouped["main_biome"].unique()]
-    pivot = grouped.pivot(index=taxon, columns="main_biome", values="Ratio").reindex(columns=present)
+    pivot = grouped.pivot(index=taxon, columns="main_biome", values="Ratio").reindex(
+        columns=present
+    )
 
     # Plot
     fig, ax = plt.subplots(figsize=(6, 8))
-    sns.heatmap(pivot, annot=True, fmt=".2f", cmap="viridis", cbar_kws={'label': 'Mean Ratio'})
+    sns.heatmap(
+        pivot, annot=True, fmt=".2f", cmap="viridis", cbar_kws={"label": "Mean Ratio"}
+    )
     ax.set_xlabel("Biome")
     ax.set_ylabel(taxon.capitalize())
     ax.set_title(f"Mean Seeds/Non-seeds Ratio per {taxon.capitalize()} (Top {top_n})")
@@ -334,7 +338,9 @@ def main():
 
     # Load metadata with biome assignment
     biomes_df = load_data(COMPACT_METADATA_WITH_BIOME_TSV, filetype="tsv")
-    biomes_df = biomes_df[biomes_df["main_biome"].isin(["Soil", "Marine", "Freshwater"])]
+    biomes_df = biomes_df[
+        biomes_df["main_biome"].isin(["Soil", "Marine", "Freshwater"])
+    ]
     biomes_df = biomes_df[["patric_id", "main_biome"]]
 
     # Merge metabolic data with biome data
@@ -342,9 +348,12 @@ def main():
 
     # Metrics
     metrics = [
-        "Total_Seeds", "Total_non_Seeds", "Ratio",
-        "Seeds_per_Mbp", "Non_Seeds_per_Mbp",
-        ]
+        "Total_Seeds",
+        "Total_non_Seeds",
+        "Ratio",
+        "Seeds_per_Mbp",
+        "Non_Seeds_per_Mbp",
+    ]
 
     # Output directory
     plot_dir = OUTPUT_DIR / BIOMES_PLOTS_DIR
@@ -361,12 +370,14 @@ def main():
 
         # Kruskal-Wallis
         present = [b for b in BIOME_ORDER if b in sub["main_biome"].dropna().unique()]
-        
-        groups_ordered = [sub.loc[sub["main_biome"] == b, col].dropna().values for b in present]
+
+        groups_ordered = [
+            sub.loc[sub["main_biome"] == b, col].dropna().values for b in present
+        ]
 
         biomes_nonempty = [b for b, g in zip(present, groups_ordered) if len(g) > 0]
         groups_nonempty = [g for g in groups_ordered if len(g) > 0]
-        
+
         if len(groups_nonempty) < 2:
             print(f"Skipping {col}: <2 non-empty biomes.")
             continue
@@ -383,7 +394,9 @@ def main():
         if len(present) >= 3:
             posthoc = sp.posthoc_dunn(
                 sub[["main_biome", col]].dropna(),
-                val_col=col, group_col="main_biome", p_adjust="fdr_bh"
+                val_col=col,
+                group_col="main_biome",
+                p_adjust="fdr_bh",
             ).reindex(index=present, columns=present)
             dunn_results[col] = posthoc
 
@@ -417,7 +430,7 @@ def main():
         taxon="phylum",
         top_n=15,
         save_dir=plot_dir,
-        mode="normalized"
+        mode="normalized",
     )
 
     # Heatmap of mean ratios
@@ -432,13 +445,20 @@ def main():
     subsample_results = subsample_and_test(merged, metrics, n=1000, reps=50)
 
     # Save Kruskal results from subsampling
-    kruskal_summary = pd.DataFrame([
-        {"Rep": r["Replicate"], "Metric": r["Metric"],
-         "H": r["Kruskal_H"], "p": r["Kruskal_p"]}
-        for r in subsample_results
-    ])
-    kruskal_summary.to_csv(OUTPUT_DIR / "kruskal_subsampling.tsv",
-                           sep="\t", index=False)
+    kruskal_summary = pd.DataFrame(
+        [
+            {
+                "Rep": r["Replicate"],
+                "Metric": r["Metric"],
+                "H": r["Kruskal_H"],
+                "p": r["Kruskal_p"],
+            }
+            for r in subsample_results
+        ]
+    )
+    kruskal_summary.to_csv(
+        OUTPUT_DIR / "kruskal_subsampling.tsv", sep="\t", index=False
+    )
 
     # Save Dunn’s results from subsampling
     with open(OUTPUT_DIR / "dunn_posthoc_subsampling.tsv", "w") as f:
