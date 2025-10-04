@@ -1,0 +1,26 @@
+*.csv
+*.tsv
+*.json
+*.png
+*.png.gz
+*.tree
+*.pckl
+
+input/seeds_per_genome.pkl
+input/nonseeds_per_genome.pkl
+metadata/raw/gtdb_metadata_r207.tsv.gz
+
+.venv/
+env/
+venv/
+
+metadara/prego_cache/
+cache/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# PREGO / JSON cache
+metadata/prego_cache/

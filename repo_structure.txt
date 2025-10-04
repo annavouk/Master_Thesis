@@ -1,0 +1,15 @@
+.
+├── README.md                        # Repository overview and usage
+├── config.py                        # Centralized configuration of paths
+├── gtdb_trees                       # GTDB phylogenetic trees (bac120, ar53)
+├── input                            # Binary matrices (Seeds, Non-Seeds)
+├── metadata                         # Raw and processed metadata (taxonomy, genome size, biomes)
+├── notes.md                         # Development notes
+├── output                           # Analysis results and figures
+├── requirements.txt                 # Dependency versions for reproducibility
+├── scripts                          # Data preparation, analysis and visualization scripts
+├── test_input                       # Test data
+├── test_outputs                     # Test results
+└── utils                            # Custom helper functions
+
+10 directories, 5 files
